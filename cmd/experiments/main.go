@@ -48,6 +48,7 @@ func connect(id string, relayURL string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	fmt.Println(deviceID.String())
 	uri, err := url.Parse(relayURL)
 	if err != nil {
 		log.Fatalln(err)
