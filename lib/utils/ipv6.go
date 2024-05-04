@@ -1,13 +1,14 @@
 package utils
 
 import (
+	"encoding/binary"
 	"errors"
 	"net"
 )
 
 const ErrTooMuchData = "unable to encode this much data"
 
-func BytesToAddress(b []byte, r [16]byte) (ip net.IP, port int, err error) {
+func BytesToAddress(b []byte, r [16]byte) (ip net.IP, port uint16, err error) {
 	ip, err = bytesToIPv6(b)
 	if err != nil {
 		return
@@ -16,8 +17,12 @@ func BytesToAddress(b []byte, r [16]byte) (ip net.IP, port int, err error) {
 	return
 }
 
-func AddressToBytes(ip net.IP, port int, rand [16]byte) []byte {
-	for i := 0; i < port-1; i++ {
+func AddressToBytes(ip net.IP, port uint16, rand [16]byte) []byte {
+	port--
+	for i := 0; i < len(rand); i += 2 {
+		port ^= binary.BigEndian.Uint16(rand[i:])
+	}
+	for i := uint16(0); i < port-1; i++ {
 		ip = xorIpv6(ip, rand)
 	}
 	return ip
@@ -40,7 +45,7 @@ func xorIpv6(ip net.IP, rand [16]byte) net.IP {
 	return ip
 }
 
-func toSafeAddress(ip net.IP, rand [16]byte) (newIp net.IP, port int) {
+func toSafeAddress(ip net.IP, rand [16]byte) (newIp net.IP, port uint16) {
 	newIp = ip
 	for {
 		if !newIp.IsGlobalUnicast() {
@@ -49,6 +54,9 @@ func toSafeAddress(ip net.IP, rand [16]byte) (newIp net.IP, port int) {
 		} else {
 			break
 		}
+	}
+	for i := 0; i < len(rand); i += 2 {
+		port ^= binary.BigEndian.Uint16(rand[i:])
 	}
 	// Increment one more time to avoid 0 as the port
 	port++

@@ -26,4 +26,5 @@ func TestByteToIPv6(t *testing.T) {
 			t.Fatalf("restored byte %d is different", i)
 		}
 	}
+	t.Logf("IP %v, port %d", ip, port)
 }
