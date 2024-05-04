@@ -6,6 +6,7 @@ require github.com/syncthing/syncthing v1.27.7-rc.1.0.20240501080307-ec3e474a532
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/calmh/xdr v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
