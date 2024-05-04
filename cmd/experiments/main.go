@@ -42,19 +42,21 @@ func main() {
 	}
 }
 
-func connect(id string, relayURL string) {
+func connect(serverId string, relayURL string) {
 	cert, _ := tlsutil.NewCertificateInMemory("syncthing1", 1)
-	deviceID, err := syncthingprotocol.DeviceIDFromString(id)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	deviceID := syncthingprotocol.NewDeviceID(cert.Certificate[0])
+
 	fmt.Println(deviceID.String())
 	uri, err := url.Parse(relayURL)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	ctx := context.Background()
-	invite, err := client.GetInvitationFromRelay(ctx, uri, deviceID, []tls.Certificate{cert}, time.Second*10)
+	serverDeviceID, err := syncthingprotocol.DeviceIDFromString(serverId)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	invite, err := client.GetInvitationFromRelay(ctx, uri, serverDeviceID, []tls.Certificate{cert}, time.Second*10)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -137,7 +139,8 @@ func serve() {
 
 	go func() {
 		for invite := range relay.Invitations() {
-			fmt.Println("Received invitation: ", invite)
+			// Prompt for a user ID
+			log.Println("Received invite from", invite)
 			select {
 			case recv <- invite:
 				log.Println("Sent invite to recv")
