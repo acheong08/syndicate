@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+const DEVICE_ID_LENGTH = utils.DEVICE_ID_LENGTH
+
 func TestChunks(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -27,8 +29,8 @@ func TestChunks(t *testing.T) {
 	for _, tc := range testCases {
 		t.Logf("Test case %s\n", tc.name)
 		t.Run(tc.name, func(t *testing.T) {
-			var r [16]byte
-			if n, err := rand.Read(r[:]); err != nil || n != 16 {
+			var r [DEVICE_ID_LENGTH]byte
+			if n, err := rand.Read(r[:]); err != nil || n != DEVICE_ID_LENGTH {
 				t.Fatal("unable to generate random bytes")
 			}
 
@@ -49,12 +51,47 @@ func TestChunks(t *testing.T) {
 }
 
 func TestByteToIPv6(t *testing.T) {
-	var b [238]byte
-	var r [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		t.Fatal("unable to generate random bytes")
+	for i := 0; i < 10000; i++ {
+		defer func() {
+			err := recover()
+			if err != nil {
+				t.Log(i)
+				t.Fatal(err)
+			}
+		}()
+		var b [238]byte
+		var r [DEVICE_ID_LENGTH]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			t.Fatal("unable to generate random bytes")
+		}
+		if n, err := rand.Read(r[:]); err != nil || n != DEVICE_ID_LENGTH {
+			t.Fatal("unable to generate random bytes")
+		}
+
+		ips, ports := utils.EncodeIPv6(b[:], r)
+		data := utils.DecodeIPv6(ips, ports, r)
+
+		if len(b) != len(data) {
+			t.Fatal("data length mismatch")
+		}
+		for i := 0; i < len(b); i++ {
+			if b[i] != data[i] {
+				t.Fatalf("data mismatch at index %d", i)
+			}
+		}
 	}
-	if n, err := rand.Read(r[:]); err != nil || n != 16 {
+}
+
+func TestWithZeroRand(t *testing.T) {
+	defer func() {
+		err := recover()
+		if err == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	var b [238]byte
+	var r [DEVICE_ID_LENGTH]byte
+	if _, err := rand.Read(b[:]); err != nil {
 		t.Fatal("unable to generate random bytes")
 	}
 
@@ -62,6 +99,7 @@ func TestByteToIPv6(t *testing.T) {
 	data := utils.DecodeIPv6(ips, ports, r)
 
 	if len(b) != len(data) {
+		t.Log("Expected", len(b), "got", len(data))
 		t.Fatal("data length mismatch")
 	}
 	for i := 0; i < len(b); i++ {
