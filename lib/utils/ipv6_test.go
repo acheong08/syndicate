@@ -68,7 +68,10 @@ func TestByteToIPv6(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		data := utils.DecodeIPv6(ips, ports, r)
+		data, err := utils.DecodeIPv6(ips, ports, r)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if len(b) != len(data) {
 			t.Fatal("data length mismatch")

@@ -11,7 +11,10 @@ import (
 
 const DEVICE_ID_LENGTH = 32
 
-var ErrNoSafeAddress = errors.New("failed to generate a safe address")
+var (
+	ErrInvalidMagic  = errors.New("invalid magic number")
+	ErrNoSafeAddress = errors.New("failed to generate a safe address")
+)
 
 func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint16, err error) {
 	// If r is all zeros, let the last byte be 1
@@ -23,8 +26,10 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 	ips = make([]net.IP, size)
 	ports = make([]uint16, size)
 	var chunk [16]byte
-	// Take the first 4 bytes encode the length of the full data
-	binary.BigEndian.PutUint32(chunk[:], uint32(len(b)))
+	// Magic 2-byte number to identify the data
+	binary.BigEndian.PutUint16(chunk[:], 0xdead)
+	// Take the next 2 bytes to encode the length of the data
+	binary.BigEndian.PutUint16(chunk[2:], uint16(len(b)))
 
 	// Then take 12 bytes from the data to fill in the rest of the chunk
 	copy(chunk[4:], b[:12])
@@ -47,14 +52,18 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 	return
 }
 
-func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) []byte {
+func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) ([]byte, error) {
 	// If r is all zeros, let the last byte be 1
 	if r == [DEVICE_ID_LENGTH]byte{} {
 		panic("invalid random bytes")
 	}
 	// Get the length of the full data by decoding the first chunk
 	chunk := ChunkToBytes(ips[0], ports[0], r)
-	length := binary.BigEndian.Uint32(chunk[:4])
+	magic := binary.BigEndian.Uint16(chunk[:2])
+	if magic != 0xdead {
+		return nil, ErrInvalidMagic
+	}
+	length := binary.BigEndian.Uint16(chunk[2:4])
 	// Pre-allocate the data slice
 	data := make([]byte, length)
 	// Copy the first 12 bytes from the first chunk
@@ -70,7 +79,7 @@ func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) []byte {
 		}
 		n += 16
 	}
-	return data
+	return data, nil
 }
 
 func ChunkToAddress(b []byte, r [DEVICE_ID_LENGTH]byte) (ip net.IP, port uint16, err error) {
