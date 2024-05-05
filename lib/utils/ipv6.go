@@ -7,9 +7,11 @@ import (
 	"log"
 	"math"
 	"net"
+
+	"github.com/syncthing/syncthing/lib/protocol"
 )
 
-const DEVICE_ID_LENGTH = 32
+const DEVICE_ID_LENGTH = protocol.DeviceIDLength
 
 var (
 	ErrInvalidMagic  = errors.New("invalid magic number")
