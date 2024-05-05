@@ -3,19 +3,18 @@ package main
 import (
 	"encoding/gob"
 	"os"
-
-	"github.com/syncthing/syncthing/lib/protocol"
+	"syndicate/lib"
 )
 
 func main() {
 	clientList := getClientList()
 	for _, client := range clientList {
-		println(client.String())
+		println(client.DeviceID.String(), client.ServerID)
 	}
 }
 
-func getClientList() []protocol.DeviceID {
-	var clientList []protocol.DeviceID
+func getClientList() lib.ClientList {
+	var clientList lib.ClientList
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		panic(err)

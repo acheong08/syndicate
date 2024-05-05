@@ -14,6 +14,8 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"strings"
+	"syndicate/lib"
 	"time"
 
 	"github.com/syncthing/syncthing/lib/protocol"
@@ -32,44 +34,28 @@ func init() {
 }
 
 func main() {
-	cert, key, err := generateCertificate("syndicate", 182)
-	if err != nil {
-		panic(err)
-	}
-	// Save the certificate and key to certs/client.crt and certs/client.key
-	// Check if the certs directory exists
-	if _, err := os.Stat("./cmd/client/certs"); os.IsNotExist(err) {
-		// Create the certs directory
-		os.Mkdir("./cmd/client/certs", 0755)
-	}
+	cert, key, _ := generateCertificate("syndicate", 182)
 	// Save the certificate to certs/client.crt
-	certFile, err := os.Create("cmd/client/certs/client.crt")
+	certFile, err := newFile("cmd/client/certs/client.crt")
 	if err != nil {
 		panic(err)
 	}
 	defer certFile.Close()
-	if err := pem.Encode(certFile, cert); err != nil {
-		panic(err)
-	}
+	pem.Encode(certFile, cert)
 	// Save the key to certs/client.key
-	keyFile, err := os.Create("cmd/client/certs/client.key")
+	keyFile, err := newFile("cmd/client/certs/client.key")
 	if err != nil {
 		panic(err)
 	}
 	defer keyFile.Close()
-	if err := pem.Encode(keyFile, key); err != nil {
-		panic(err)
-	}
-	x509Cert, err := tls.X509KeyPair(pem.EncodeToMemory(cert), pem.EncodeToMemory(key))
-	if err != nil {
-		panic(err)
-	}
+	pem.Encode(keyFile, key)
+	x509Cert, _ := tls.X509KeyPair(pem.EncodeToMemory(cert), pem.EncodeToMemory(key))
 	deviceID := protocol.NewDeviceID(x509Cert.Certificate[0])
 	println(deviceID.String())
 	if _, err := os.Stat(configFolder); os.IsNotExist(err) {
 		os.Mkdir(configFolder, 0755)
 	}
-	var clientList []protocol.DeviceID
+	var clientList lib.ClientList
 	if _, err := os.Stat(configFolder + "/clients.bin"); err == nil {
 		// Read the client list from the file and decode with gob
 		file, err := os.Open(configFolder + "/clients.bin")
@@ -79,9 +65,21 @@ func main() {
 			_ = decoder.Decode(&clientList)
 		}
 	}
-	clientList = append(clientList, deviceID)
+	serverCert, serverKey, err := generateCertificate("syndicate-server", 182)
+	if err != nil {
+		panic(err)
+	}
+	// Generate server device ID
+	serverX509Cert, _ := tls.X509KeyPair(pem.EncodeToMemory(serverCert), pem.EncodeToMemory(serverKey))
+	serverDeviceID := protocol.NewDeviceID(serverX509Cert.Certificate[0])
+	clientList = append(clientList, lib.ClientEntry{
+		DeviceID:   deviceID,
+		ServerID:   serverDeviceID.String(),
+		ServerCert: pem.EncodeToMemory(serverCert),
+		ServerKey:  pem.EncodeToMemory(serverKey),
+	})
 	// Save the client list to the file
-	file, err := os.Create(configFolder + "/clients.bin")
+	file, err := newFile(configFolder + "/clients.bin")
 	defer file.Close()
 	if err != nil {
 		panic(err)
@@ -94,12 +92,31 @@ func main() {
 	// Set CGO_ENABLED=0 to build the client without cgo
 	os.Setenv("CGO_ENABLED", "0")
 	// Compile the client by running `go build ./cmd/client`
-	cmd := exec.Command("go", "build", "./cmd/client")
+	cmd := exec.Command("go", "build", "-ldflags", "-X main.serverDeviceID="+serverDeviceID.String(), "./cmd/client")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("%s\n", stdoutStderr)
+}
+
+func newFile(filepath string) (*os.File, error) {
+	// Split the filepath into directory and filename
+	dir := strings.Join(strings.Split(filepath, "/")[:len(strings.Split(filepath, "/"))-1], "/")
+	// Check if the directory exists
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		// Create the directory
+		err = os.Mkdir(dir, 0755)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Save the data to the file
+	file, err := os.Create(filepath)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
 }
 
 // generateCertificate generates a PEM formatted key pair and self-signed certificate in memory.
