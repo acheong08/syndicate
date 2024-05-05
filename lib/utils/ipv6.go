@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"log"
 	"math"
 	"net"
@@ -10,7 +11,9 @@ import (
 
 const DEVICE_ID_LENGTH = 32
 
-func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint16) {
+var ErrNoSafeAddress = errors.New("failed to generate a safe address")
+
+func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint16, err error) {
 	// If r is all zeros, let the last byte be 1
 	if r == [DEVICE_ID_LENGTH]byte{} {
 		panic("invalid random bytes")
@@ -26,7 +29,7 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 	// Then take 12 bytes from the data to fill in the rest of the chunk
 	copy(chunk[4:], b[:12])
 
-	ips[0], ports[0] = ChunkToAddress(chunk[:], r)
+	ips[0], ports[0], err = ChunkToAddress(chunk[:], r)
 	// Then for each 16 byte chunk, encode it into an address
 	n := 12
 	for i := 1; i < size; i++ {
@@ -39,7 +42,7 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 			// Fill in the rest with random bytes
 			rand.Read(chunk[len(b)-n:])
 		}
-		ips[i], ports[i] = ChunkToAddress(chunk[:], r)
+		ips[i], ports[i], err = ChunkToAddress(chunk[:], r)
 	}
 	return
 }
@@ -70,13 +73,13 @@ func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) []byte {
 	return data
 }
 
-func ChunkToAddress(b []byte, r [DEVICE_ID_LENGTH]byte) (ip net.IP, port uint16) {
+func ChunkToAddress(b []byte, r [DEVICE_ID_LENGTH]byte) (ip net.IP, port uint16, err error) {
 	if len(b) != 16 {
 		panic("invalid length")
 	}
 	// Run it through xor at least once to ensure randomness
 	ip = xorIpv6(append([]byte{}, b...), r)
-	ip, port = toSafeAddress(ip, r)
+	ip, port, err = toSafeAddress(ip, r)
 	return
 }
 
@@ -101,15 +104,16 @@ func xorIpv6(ip net.IP, r [DEVICE_ID_LENGTH]byte) net.IP {
 	return ip
 }
 
-func toSafeAddress(ip net.IP, r [DEVICE_ID_LENGTH]byte) (newIp net.IP, port uint16) {
+func toSafeAddress(ip net.IP, r [DEVICE_ID_LENGTH]byte) (newIp net.IP, port uint16, err error) {
 	newIp = ip
 	for {
 		if newIp.IsLoopback() || newIp.IsUnspecified() {
 			newIp = xorIpv6(ip, r)
 			port++
-			if port > 29999 {
+			if port > 1000 {
 				log.Println(r, ip)
-				panic("unable to find a address, did you forget to initialize random?")
+				err = ErrNoSafeAddress
+				return
 			}
 		} else {
 			break

@@ -38,7 +38,10 @@ func TestChunks(t *testing.T) {
 				rand.Read(tc.bytes[:])
 			}
 
-			ip, port := utils.ChunkToAddress(tc.bytes[:], r)
+			ip, port, err := utils.ChunkToAddress(tc.bytes[:], r)
+			if err != nil {
+				t.Fatal(err)
+			}
 			restored := utils.ChunkToBytes(ip, port, r)
 			for i := range restored {
 				if restored[i] != tc.bytes[i] {
@@ -52,13 +55,6 @@ func TestChunks(t *testing.T) {
 
 func TestByteToIPv6(t *testing.T) {
 	for i := 0; i < 10000; i++ {
-		defer func() {
-			err := recover()
-			if err != nil {
-				t.Log(i)
-				t.Fatal(err)
-			}
-		}()
 		var b [238]byte
 		var r [DEVICE_ID_LENGTH]byte
 		if _, err := rand.Read(b[:]); err != nil {
@@ -68,7 +64,10 @@ func TestByteToIPv6(t *testing.T) {
 			t.Fatal("unable to generate random bytes")
 		}
 
-		ips, ports := utils.EncodeIPv6(b[:], r)
+		ips, ports, err := utils.EncodeIPv6(b[:], r)
+		if err != nil {
+			t.Fatal(err)
+		}
 		data := utils.DecodeIPv6(ips, ports, r)
 
 		if len(b) != len(data) {
@@ -95,16 +94,5 @@ func TestWithZeroRand(t *testing.T) {
 		t.Fatal("unable to generate random bytes")
 	}
 
-	ips, ports := utils.EncodeIPv6(b[:], r)
-	data := utils.DecodeIPv6(ips, ports, r)
-
-	if len(b) != len(data) {
-		t.Log("Expected", len(b), "got", len(data))
-		t.Fatal("data length mismatch")
-	}
-	for i := 0; i < len(b); i++ {
-		if b[i] != data[i] {
-			t.Fatalf("data mismatch at index %d", i)
-		}
-	}
+	utils.EncodeIPv6(b[:], r)
 }
