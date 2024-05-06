@@ -9,7 +9,7 @@ import (
 func main() {
 	clientList := getClientList()
 	for _, client := range clientList {
-		println(client.DeviceID.String(), client.ServerID)
+		println(client.ClientID.String(), client.ServerID)
 	}
 }
 

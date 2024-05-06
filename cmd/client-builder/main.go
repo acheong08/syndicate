@@ -49,8 +49,8 @@ func main() {
 	}
 	defer keyFile.Close()
 	pem.Encode(keyFile, key)
-	x509Cert, _ := tls.X509KeyPair(pem.EncodeToMemory(cert), pem.EncodeToMemory(key))
-	deviceID := protocol.NewDeviceID(x509Cert.Certificate[0])
+	clientCert, _ := tls.X509KeyPair(pem.EncodeToMemory(cert), pem.EncodeToMemory(key))
+	deviceID := protocol.NewDeviceID(clientCert.Certificate[0])
 	println(deviceID.String())
 	if _, err := os.Stat(configFolder); os.IsNotExist(err) {
 		os.Mkdir(configFolder, 0755)
@@ -73,7 +73,8 @@ func main() {
 	serverX509Cert, _ := tls.X509KeyPair(pem.EncodeToMemory(serverCert), pem.EncodeToMemory(serverKey))
 	serverDeviceID := protocol.NewDeviceID(serverX509Cert.Certificate[0])
 	clientList = append(clientList, lib.ClientEntry{
-		DeviceID:   deviceID,
+		ClientID:   deviceID,
+		ClientCert: clientCert,
 		ServerID:   serverDeviceID.String(),
 		ServerCert: pem.EncodeToMemory(serverCert),
 		ServerKey:  pem.EncodeToMemory(serverKey),

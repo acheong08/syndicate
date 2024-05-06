@@ -1,12 +1,17 @@
 package lib
 
-import "github.com/syncthing/syncthing/lib/protocol"
+import (
+	"crypto/tls"
+
+	"github.com/syncthing/syncthing/lib/protocol"
+)
 
 type ClientList []ClientEntry
 
 type ClientEntry struct {
-	DeviceID   protocol.DeviceID
-	ServerID   string
+	ClientID   protocol.DeviceID
+	ClientCert tls.Certificate // We need this for upgrading to TLS (RequireAndVerifyClientCert)
+	ServerID   string          // This could be generated from the server cert/key but it's easier to just store it
 	ServerCert []byte
 	ServerKey  []byte
 }
