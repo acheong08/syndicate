@@ -100,6 +100,7 @@ func serve() {
 
 	t0 := time.Now()
 	for err := disco.Error(); err != nil; err = disco.Error() {
+		fmt.Println(err)
 		if time.Since(t0) > 10*time.Second {
 			fmt.Println("Timeout")
 			return

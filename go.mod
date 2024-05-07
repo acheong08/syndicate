@@ -2,7 +2,10 @@ module syndicate
 
 go 1.22.2
 
-require github.com/syncthing/syncthing v1.27.7-rc.1.0.20240501080307-ec3e474a5320
+require (
+	github.com/leaanthony/clir v1.6.0
+	github.com/syncthing/syncthing v1.27.7-rc.1.0.20240501080307-ec3e474a5320
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

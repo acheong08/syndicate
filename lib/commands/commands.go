@@ -1,6 +1,6 @@
 package commands
 
-type command uint8
+type Command uint8
 
 const (
 	_ = iota // We don't want 0 values
@@ -18,4 +18,39 @@ const (
 	UpdateID
 	// Replaces the agent with a new binary and restarts it
 	UpdateBinary
+
+	NoOp // Marks the end of the command list
 )
+
+func CommandList() (cmds []Command) {
+	cmds = make([]Command, NoOp-1)
+	for i := Socks5; i < int(NoOp); i++ {
+		cmds[i-1] = Command(i)
+	}
+	return
+}
+
+func (c Command) String() string {
+	switch c {
+	case Socks5:
+		return "Socks5"
+	case ShellTCP:
+		return "Reverse shell"
+	case SelfDestruct:
+		return "SelfDestruct"
+	case SendFile:
+		return "SendFile"
+	case ReceiveFile:
+		return "ReceiveFile"
+	case UpdateID:
+		return "Update server device ID"
+	case UpdateBinary:
+		return "UpdateBinary"
+	default:
+		return "Unknown"
+	}
+}
+
+func (c Command) Value() any {
+	return c
+}

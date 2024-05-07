@@ -34,6 +34,11 @@ func init() {
 }
 
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run main.go <client label>")
+		return
+	}
+	clientLabel := os.Args[1]
 	cert, key, _ := generateCertificate("syndicate", 182)
 	// Save the certificate to certs/client.crt
 	certFile, err := newFile("cmd/client/certs/client.crt")
@@ -51,7 +56,7 @@ func main() {
 	pem.Encode(keyFile, key)
 	clientCert, _ := tls.X509KeyPair(pem.EncodeToMemory(cert), pem.EncodeToMemory(key))
 	deviceID := protocol.NewDeviceID(clientCert.Certificate[0])
-	println(deviceID.String())
+	fmt.Println("clientID", deviceID.String())
 	if _, err := os.Stat(configFolder); os.IsNotExist(err) {
 		os.Mkdir(configFolder, 0755)
 	}
@@ -72,12 +77,13 @@ func main() {
 	// Generate server device ID
 	serverX509Cert, _ := tls.X509KeyPair(pem.EncodeToMemory(serverCert), pem.EncodeToMemory(serverKey))
 	serverDeviceID := protocol.NewDeviceID(serverX509Cert.Certificate[0])
+	fmt.Println("serverID", serverDeviceID.String())
 	clientList = append(clientList, lib.ClientEntry{
+		Label:      clientLabel,
 		ClientID:   deviceID,
-		ClientCert: clientCert,
+		ClientCert: [][]byte{pem.EncodeToMemory(cert), pem.EncodeToMemory(key)},
 		ServerID:   serverDeviceID.String(),
-		ServerCert: pem.EncodeToMemory(serverCert),
-		ServerKey:  pem.EncodeToMemory(serverKey),
+		ServerCert: [][]byte{pem.EncodeToMemory(serverCert), pem.EncodeToMemory(serverKey)},
 	})
 	// Save the client list to the file
 	file, err := newFile(configFolder + "/clients.bin")
@@ -93,7 +99,7 @@ func main() {
 	// Set CGO_ENABLED=0 to build the client without cgo
 	os.Setenv("CGO_ENABLED", "0")
 	// Compile the client by running `go build ./cmd/client`
-	cmd := exec.Command("go", "build", "-ldflags", "-X main.serverDeviceID="+serverDeviceID.String(), "./cmd/client")
+	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", fmt.Sprintf("-X main.serverDeviceID=%s -s -w", serverDeviceID.String()), "./cmd/client")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		panic(err)
