@@ -7,7 +7,6 @@ import (
 	"os"
 	"syndicate/lib"
 	"syndicate/lib/commands"
-	"syndicate/lib/utils"
 
 	"github.com/leaanthony/clir"
 )
@@ -58,7 +57,7 @@ func main() {
 			return errors.New("invalid flags")
 		}
 		client := clientList[clientIndex-1]
-		return controlClient(client, commands.Command(command))
+		return controlClient(client, commands.Command(command), "UK")
 	})
 
 	cli.Run()
