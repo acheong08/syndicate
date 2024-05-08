@@ -10,8 +10,8 @@ type ClientEntry struct {
 	Label    string
 	ClientID protocol.DeviceID
 	// [0] is cert, [1] is key. pem encoded
-	ClientCert [][]byte // We need this for upgrading to TLS (RequireAndVerifyClientCert)
-	ServerID   string   // This could be generated from the server cert/key but it's easier to just store it
+	ClientCert []byte // We need this for upgrading to TLS (RequireAndVerifyClientCert)
+	ServerID   string // This could be generated from the server cert/key but it's easier to just store it
 	ServerCert [][]byte
 }
 

@@ -78,7 +78,7 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 	defer conn.Close()
 	log.Printf("Connected to %s", conn.RemoteAddr())
 	// Upgrade to TLS
-	clientCert, err := x509.ParseCertificate(clientEntry.ClientCert[0])
+	clientCert, err := x509.ParseCertificate(clientEntry.ClientCert)
 	if err != nil {
 		return err
 	}
