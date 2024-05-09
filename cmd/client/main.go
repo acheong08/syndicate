@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	_ "embed"
-	"encoding/binary"
 	"errors"
 	"log"
+	"net"
 	"net/url"
 	"syndicate/lib"
+	"syndicate/lib/utils"
 	"time"
 
 	"github.com/syncthing/syncthing/lib/protocol"
@@ -67,7 +68,7 @@ func main() {
 	}
 }
 
-func ConnectToRelay(relayAddress *url.URL) (*tls.Conn, error) {
+func ConnectToRelay(relayAddress *url.URL) (net.Conn, error) {
 	ctx := context.Background()
 
 	invite, err := client.GetInvitationFromRelay(ctx, relayAddress, serverDeviceID, []tls.Certificate{cert}, timeout)
@@ -79,32 +80,7 @@ func ConnectToRelay(relayAddress *url.URL) (*tls.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	tlsConfig := tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		InsecureSkipVerify: true,
-	}
-	log.Println("Beginning tls handshake")
-	tlsConn := tls.Client(conn, &tlsConfig)
-	err = tlsConn.Handshake()
-	if err != nil {
-		return nil, err
-	}
-	log.Println("Beginning to write magic")
-	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, 0xdeadface)
-	_, err = tlsConn.Write(buf)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tlsConn.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	if binary.LittleEndian.Uint64(buf) != 0xdeadface {
-		return nil, errors.New("invalid magic number")
-	}
-	log.Println("Handshake complete")
-	return tlsConn, nil
+	return utils.UpgradeClientConn(conn, cert, time.Second*5)
 }
 
 func getRelay(syncthing lib.Syncthing) (relayAddress *url.URL, err error) {

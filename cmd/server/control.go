@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
-	"errors"
 	"log"
 	"net/url"
 	"syndicate/lib"
@@ -81,39 +79,10 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 	// Upgrade to TLS
 	clientCert, err := x509.ParseCertificate(clientEntry.ClientCert)
 	if err != nil {
-		panic(err)
-	}
-	clientCertPool := x509.NewCertPool()
-	clientCertPool.AddCert(clientCert)
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    clientCertPool,
-	}
-
-	tlsConn := tls.Server(conn, tlsConfig)
-	err = tlsConn.Handshake()
-	if err != nil {
-		panic(err)
-	}
-	log.Println("TLS connection established")
-	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, 0xdeadface)
-	_, err = tlsConn.Write(buf) // Send the magic number
-	if err != nil {
-		panic(err)
-	}
-	log.Println("Waiting for read")
-	// Read the magic number
-	_, err = tlsConn.Read(buf)
-	if err != nil {
 		return err
 	}
-	log.Println("Received magic")
-	if binary.LittleEndian.Uint64(buf) != 0xdeadface {
-		return errors.New("invalid magic number")
-	}
-	return nil
+	_, err = utils.UpgradeServerConn(conn, cert, clientCert, time.Second*5)
+	return err
 }
 
 func findOptimalRelay(country string) (string, error) {
