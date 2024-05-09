@@ -23,7 +23,7 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 	commandBytes := []byte{byte(command)}
 	ips, ports, err := utils.EncodeIPv6(commandBytes, clientEntry.ClientID)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	theRelay, err := findOptimalRelay(countryCode)
 	if err != nil {
@@ -36,18 +36,19 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 	}
 	cert, err := tls.X509KeyPair(clientEntry.ServerCert[0], clientEntry.ServerCert[1])
 	if err != nil {
-		return err
+		panic(err)
 	}
-	syncthing, err := lib.NewSyncthing(cert, lister, true)
+	syncthing, err := lib.NewSyncthing(cert, &lister)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	syncthing.Serve()
 	defer syncthing.Close()
 	relayURL, _ := url.Parse(theRelay)
 	// Make a connection to the relay
 	relay, err := client.NewClient(relayURL, []tls.Certificate{cert}, time.Second*10)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -73,14 +74,14 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 
 	conn, err := client.JoinSession(ctx, <-inviteRecv)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer conn.Close()
 	log.Printf("Connected to %s", conn.RemoteAddr())
 	// Upgrade to TLS
 	clientCert, err := x509.ParseCertificate(clientEntry.ClientCert)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	clientCertPool := x509.NewCertPool()
 	clientCertPool.AddCert(clientCert)
@@ -90,15 +91,25 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 		ClientCAs:    clientCertPool,
 	}
 
-	conn = tls.Server(conn, tlsConfig)
-	buf := make([]byte, 2)
+	tlsConn := tls.Server(conn, tlsConfig)
+	err = tlsConn.Handshake()
+	if err != nil {
+		panic(err)
+	}
+	log.Println("TLS connection established")
+	buf := make([]byte, 8)
 	binary.LittleEndian.PutUint64(buf, 0xdeadface)
-	conn.Write(buf) // Send the magic number
+	_, err = tlsConn.Write(buf) // Send the magic number
+	if err != nil {
+		panic(err)
+	}
+	log.Println("Waiting for read")
 	// Read the magic number
-	_, err = conn.Read(buf)
+	_, err = tlsConn.Read(buf)
 	if err != nil {
 		return err
 	}
+	log.Println("Received magic")
 	if binary.LittleEndian.Uint64(buf) != 0xdeadface {
 		return errors.New("invalid magic number")
 	}

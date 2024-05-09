@@ -81,7 +81,7 @@ func main() {
 	clientList = append(clientList, lib.ClientEntry{
 		Label:      clientLabel,
 		ClientID:   deviceID,
-		ClientCert: [][]byte{pem.EncodeToMemory(cert), pem.EncodeToMemory(key)},
+		ClientCert: clientCert.Certificate[0],
 		ServerID:   serverDeviceID.String(),
 		ServerCert: [][]byte{pem.EncodeToMemory(serverCert), pem.EncodeToMemory(serverKey)},
 	})
@@ -99,7 +99,7 @@ func main() {
 	// Set CGO_ENABLED=0 to build the client without cgo
 	os.Setenv("CGO_ENABLED", "0")
 	// Compile the client by running `go build ./cmd/client`
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", fmt.Sprintf("-X main.serverDeviceID=%s -s -w", serverDeviceID.String()), "./cmd/client")
+	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", fmt.Sprintf("-X main.serverID=%s -s -w", serverDeviceID.String()), "./cmd/client")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		panic(err)

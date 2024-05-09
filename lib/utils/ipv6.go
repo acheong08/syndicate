@@ -34,7 +34,11 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 	binary.BigEndian.PutUint16(chunk[2:], uint16(len(b)))
 
 	// Then take 12 bytes from the data to fill in the rest of the chunk
-	copy(chunk[4:], b[:12])
+	if len(b) > 12 {
+		copy(chunk[4:], b[:12])
+	} else {
+		copy(chunk[4:], b)
+	}
 
 	ips[0], ports[0], err = ChunkToAddress(chunk[:], r)
 	// Then for each 16 byte chunk, encode it into an address

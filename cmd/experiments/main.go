@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"syndicate/lib"
 	"syndicate/lib/relay"
 	"time"
 
@@ -32,31 +33,38 @@ func main() {
 	case "serve":
 		serve()
 	case "connect":
-		if len(os.Args) < 4 {
-			fmt.Println("Usage: main connect <id> <relayURL>")
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: main connect <id>")
 			return
 		}
-		connect(os.Args[2], os.Args[3])
+		connect(os.Args[2])
 	default:
 		fmt.Println("Usage: main serve/connect")
 	}
 }
 
-func connect(serverId string, relayURL string) {
+func connect(serverId string) {
 	cert, _ := tlsutil.NewCertificateInMemory("syncthing1", 1)
 	deviceID := syncthingprotocol.NewDeviceID(cert.Certificate[0])
 
-	fmt.Println(deviceID.String())
-	uri, err := url.Parse(relayURL)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	ctx := context.Background()
 	serverDeviceID, err := syncthingprotocol.DeviceIDFromString(serverId)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	invite, err := client.GetInvitationFromRelay(ctx, uri, serverDeviceID, []tls.Certificate{cert}, time.Second*10)
+
+	syncthing, _ := lib.NewSyncthing(cert, nil)
+	addresses, err := syncthing.Lookup(serverDeviceID)
+	if err != nil {
+		if err.Error() == lib.ErrNotFound {
+			log.Fatalln("Device not broadcasting")
+		}
+		panic(err)
+	}
+
+	fmt.Println(deviceID.String())
+
+	ctx := context.Background()
+	invite, err := client.GetInvitationFromRelay(ctx, &addresses[0], serverDeviceID, []tls.Certificate{cert}, time.Second*10)
 	if err != nil {
 		log.Fatalln(err)
 	}

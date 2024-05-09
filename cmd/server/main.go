@@ -25,7 +25,7 @@ func main() {
 	listCmd.Action(func() error {
 		clientList := getClientList()
 		for i, client := range clientList {
-			fmt.Printf("%d: %s", i+1, client.String())
+			fmt.Printf("%d: %s\n", i+1, client.String())
 		}
 		return nil
 	})
@@ -40,7 +40,7 @@ func main() {
 		if command == 0 || command >= uint(commands.NoOp) {
 			fmt.Printf("Invalid command. Available commands are:\n")
 			for _, cmd := range commands.CommandList() {
-				fmt.Printf("- %s\n", cmd.String())
+				fmt.Printf("%d: %s\n", cmd, cmd.String())
 			}
 			err = true
 		}
@@ -57,7 +57,11 @@ func main() {
 			return errors.New("invalid flags")
 		}
 		client := clientList[clientIndex-1]
-		return controlClient(client, commands.Command(command), "UK")
+		fail := controlClient(client, commands.Command(command), "UK")
+		if fail != nil {
+			panic(fail)
+		}
+		return fail
 	})
 
 	cli.Run()
