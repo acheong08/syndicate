@@ -24,6 +24,7 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 		panic("invalid random bytes")
 	}
 	size := int(math.Ceil(float64(len(b)+4) / 16))
+
 	// Pre-allocate the ips slice (len(b) + 4) / 16
 	ips = make([]net.IP, size)
 	ports = make([]uint16, size)
@@ -33,12 +34,18 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 	// Take the next 2 bytes to encode the length of the data
 	binary.BigEndian.PutUint16(chunk[2:], uint16(len(b)))
 
-	// Then take 12 bytes from the data to fill in the rest of the chunk
-	if len(b) > 12 {
-		copy(chunk[4:], b[:12])
-	} else {
-		copy(chunk[4:], b)
+	// Fill out b such that we have at least 16 bytes
+	if len(b) < 16 && len(b)%16 != 0 {
+		randomBytes := make([]byte, 16-len(b)%16)
+		rand.Read(randomBytes)
+		b = append(b, randomBytes...)
+		if len(b) != 16 {
+			panic("ur dumb")
+		}
 	}
+
+	// Then take 12 bytes from the data to fill in the rest of the chunk
+	copy(chunk[4:], b[:12])
 
 	ips[0], ports[0], err = ChunkToAddress(chunk[:], r)
 	// Then for each 16 byte chunk, encode it into an address

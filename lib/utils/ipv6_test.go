@@ -99,3 +99,20 @@ func TestWithZeroRand(t *testing.T) {
 
 	utils.EncodeIPv6(b[:], r)
 }
+
+func TestSmallerThan16(t *testing.T) {
+	var b [2]byte
+	var r [DEVICE_ID_LENGTH]byte
+	rand.Read(b[:])
+	rand.Read(r[:])
+	ips, ports, _ := utils.EncodeIPv6(b[:], r)
+	data, _ := utils.DecodeIPv6(ips, ports, r)
+	if len(data) != 2 {
+		t.Fatalf("data length mismatch. got %d, expected 2", len(data))
+	}
+	for i := 0; i < len(b); i++ {
+		if b[i] != data[i] {
+			t.Fatalf("data mismatch at index %d", i)
+		}
+	}
+}
