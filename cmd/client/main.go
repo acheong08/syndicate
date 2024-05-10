@@ -8,8 +8,8 @@ import (
 	"log"
 	"net"
 	"net/url"
-	"syndicate/lib"
-	"syndicate/lib/utils"
+	"gitlab.torproject.org/acheong08/syndicate/lib"
+	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 	"time"
 
 	"github.com/syncthing/syncthing/lib/protocol"

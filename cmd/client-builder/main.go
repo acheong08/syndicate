@@ -15,7 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syndicate/lib"
+	"gitlab.torproject.org/acheong08/syndicate/lib"
 	"time"
 
 	"github.com/syncthing/syncthing/lib/protocol"

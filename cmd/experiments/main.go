@@ -9,8 +9,8 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"syndicate/lib"
-	"syndicate/lib/relay"
+	"gitlab.torproject.org/acheong08/syndicate/lib"
+	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
 	"time"
 
 	"github.com/syncthing/syncthing/lib/connections/registry"

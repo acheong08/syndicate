@@ -2,7 +2,7 @@ package utils_test
 
 import (
 	"crypto/rand"
-	"syndicate/lib/utils"
+	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 	"testing"
 )
 

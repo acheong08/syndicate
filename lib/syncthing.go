@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/url"
-	"syndicate/lib/relay"
+	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
 
 	"github.com/syncthing/syncthing/lib/connections/registry"
 	"github.com/syncthing/syncthing/lib/discover"

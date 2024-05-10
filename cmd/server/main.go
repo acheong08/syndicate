@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"syndicate/lib"
-	"syndicate/lib/commands"
+	"gitlab.torproject.org/acheong08/syndicate/lib"
+	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
 
 	"github.com/leaanthony/clir"
 )

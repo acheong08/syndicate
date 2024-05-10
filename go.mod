@@ -1,6 +1,8 @@
-module syndicate
+module gitlab.torproject.org/acheong08/syndicate
 
-go 1.22.2
+go 1.21.0
+
+toolchain go1.22.2
 
 require (
 	github.com/leaanthony/clir v1.6.0
