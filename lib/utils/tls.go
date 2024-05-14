@@ -32,7 +32,7 @@ func upgradeClientConn(conn net.Conn, cert tls.Certificate) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := magic(tlsConn); err != nil {
+	if err := magic(tlsConn, false); err != nil {
 		return nil, err
 	}
 	return tlsConn, err
@@ -77,20 +77,44 @@ func upgradeServerConn(conn net.Conn, cert tls.Certificate, clientCert *x509.Cer
 		return nil, err
 	}
 	log.Println("TLS handshake completed")
-	if err = magic(tlsConn); err != nil {
+	// We read before writing to prevent EOF to client
+	if err = magic(tlsConn, true); err != nil {
 		return nil, err
 	}
 	log.Println("Magic succeeded")
 	return tlsConn, err
 }
 
-func magic(conn net.Conn) error {
+func magic(conn net.Conn, readFirst bool) error {
+	if readFirst {
+		if err := readMagic(conn); err != nil {
+			return err
+		}
+		if err := writeMagic(conn); err != nil {
+			return err
+		}
+	} else {
+		if err := writeMagic(conn); err != nil {
+			return err
+		}
+		if err := readMagic(conn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeMagic(conn net.Conn) error {
 	buf := make([]byte, 8)
 	binary.LittleEndian.PutUint64(buf, 0xdeadface)
-	if _, err := conn.Write(buf); err != nil {
-		return err
-	}
-	if _, err := conn.Read(buf); err != nil {
+	_, err := conn.Write(buf)
+	return err
+}
+
+func readMagic(conn net.Conn) error {
+	buf := make([]byte, 8)
+	_, err := conn.Read(buf)
+	if err != nil {
 		return err
 	}
 	if binary.LittleEndian.Uint64(buf) != 0xdeadface {
