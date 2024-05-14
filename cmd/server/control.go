@@ -4,45 +4,36 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"log"
+	"net"
 	"net/url"
+	"time"
+
 	"gitlab.torproject.org/acheong08/syndicate/lib"
-	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
 	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
 	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
-	"time"
 
 	syncthingprotocol "github.com/syncthing/syncthing/lib/protocol"
 	"github.com/syncthing/syncthing/lib/relay/client"
 	"github.com/syncthing/syncthing/lib/relay/protocol"
 )
 
-func controlClient(clientEntry lib.ClientEntry, command commands.Command, countryCode string) error {
-	commandBytes := []byte{byte(command)}
-	ips, ports, err := utils.EncodeIPv6(commandBytes, clientEntry.ClientID)
-	if err != nil {
-		panic(err)
+func startBroadcast(ctx context.Context, cert tls.Certificate, relayAddress string) error {
+	lister := relay.AddressLister{
+		RelayAddress: relayAddress,
 	}
-	theRelay, err := findOptimalRelay(countryCode)
+	syncthing, err := lib.NewSyncthing(ctx, cert, &lister)
 	if err != nil {
 		return err
 	}
-	lister := relay.AddressLister{
-		IPs:          ips,
-		Ports:        ports,
-		RelayAddress: theRelay,
-	}
-	cert, err := tls.X509KeyPair(clientEntry.ServerCert[0], clientEntry.ServerCert[1])
-	if err != nil {
-		panic(err)
-	}
-	syncthing, err := lib.NewSyncthing(cert, &lister)
-	if err != nil {
-		panic(err)
-	}
 	syncthing.Serve()
-	defer syncthing.Close()
-	relayURL, _ := url.Parse(theRelay)
+	return nil
+}
+
+func listenRelay(cert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate) (net.Conn, error) {
+	relayURL, _ := url.Parse(relayAddress)
 	// Make a connection to the relay
 	relay, err := client.NewClient(relayURL, []tls.Certificate{cert}, time.Second*10)
 	if err != nil {
@@ -57,7 +48,7 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 		for invite := range relay.Invitations() {
 			log.Println("Received invite from", invite)
 			fromDevice, _ := syncthingprotocol.DeviceIDFromBytes(invite.From)
-			if !fromDevice.Equals(clientEntry.ClientID) {
+			if !fromDevice.Equals(clientID) {
 				log.Println("Discarding invite from unknown client")
 				continue
 			}
@@ -76,13 +67,7 @@ func controlClient(clientEntry lib.ClientEntry, command commands.Command, countr
 	}
 	defer conn.Close()
 	log.Printf("Connected to %s", conn.RemoteAddr())
-	// Upgrade to TLS
-	clientCert, err := x509.ParseCertificate(clientEntry.ClientCert)
-	if err != nil {
-		return err
-	}
-	_, err = utils.UpgradeServerConn(conn, cert, clientCert, time.Second*5)
-	return err
+	return utils.UpgradeServerConn(conn, cert, clientCert, time.Second*5)
 }
 
 func findOptimalRelay(country string) (string, error) {
@@ -118,7 +103,22 @@ func findOptimalRelay(country string) (string, error) {
 		return aScore > bScore
 	})
 
-	return relays.Relays[0].URL, nil
+	for _, relay := range relays.Relays {
+		// Test connection
+		relayURL, _ := url.Parse(relay.URL)
+		timeout := time.Second * 5
+		conn, err := net.DialTimeout("tcp", relayURL.Host, timeout)
+		if err != nil {
+			log.Printf("Failed to connect to %s: %s", relay.URL, err)
+			continue
+		}
+		if conn != nil {
+			defer conn.Close()
+			fmt.Println("Successfully connected to", relayURL.String())
+			return relay.URL, nil
+		}
+	}
+	return "", errors.New("No viable relays found")
 }
 
 func minButNotZero(a, b int) int {

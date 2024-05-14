@@ -9,14 +9,14 @@ type Relays struct {
 	Relays []Relay `json:"relays"`
 }
 
-func (rs *Relays) Filter(f func(Relay) bool) *Relays {
-	var relays Relays
+func (rs *Relays) Filter(f func(Relay) bool) {
+	var relays []Relay
 	for _, r := range rs.Relays {
 		if f(r) {
-			relays.Relays = append(relays.Relays, r)
+			relays = append(relays, r)
 		}
 	}
-	return &relays
+	rs.Relays = relays
 }
 
 func (rs *Relays) Sort(isGreater func(Relay, Relay) bool) {

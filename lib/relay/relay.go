@@ -2,13 +2,11 @@ package relay
 
 import (
 	"encoding/json"
-	"fmt"
-	"net"
 	"net/http"
 )
 
 func FetchRelays() (*Relays, error) {
-	resp, err := http.Get("https://relays.syncthing.net/endpoint")
+	resp, err := http.Get("https://relays.syncthing.net/endpoint/full")
 	if err != nil {
 		return nil, err
 	}
@@ -25,17 +23,10 @@ func FetchRelays() (*Relays, error) {
 
 type AddressLister struct {
 	RelayAddress string
-	IPs          []net.IP
-	Ports        []uint16
 }
 
 func (a AddressLister) ExternalAddresses() []string {
-	var addresses []string = make([]string, len(a.IPs)+1)
-	addresses[0] = a.RelayAddress
-	for i, ip := range a.IPs {
-		addresses[i+1] = fmt.Sprintf("tcp://%s:%d", ip.String(), a.Ports[i])
-	}
-	return addresses
+	return []string{a.RelayAddress}
 }
 
 func (a AddressLister) AllAddresses() []string {

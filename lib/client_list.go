@@ -7,9 +7,8 @@ import (
 type ClientList []ClientEntry
 
 type ClientEntry struct {
-	Label    string
-	ClientID protocol.DeviceID
-	// [0] is cert, [1] is key. pem encoded
+	Label      string
+	ClientID   protocol.DeviceID
 	ClientCert []byte // We need this for upgrading to TLS (RequireAndVerifyClientCert)
 	ServerID   string // This could be generated from the server cert/key but it's easier to just store it
 	ServerCert [][]byte
