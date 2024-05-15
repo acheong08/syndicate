@@ -15,8 +15,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"gitlab.torproject.org/acheong08/syndicate/lib"
 	"time"
+
+	"gitlab.torproject.org/acheong08/syndicate/lib"
 
 	"github.com/syncthing/syncthing/lib/protocol"
 	"github.com/syncthing/syncthing/lib/rand"
@@ -82,7 +83,6 @@ func main() {
 		Label:      clientLabel,
 		ClientID:   deviceID,
 		ClientCert: clientCert.Certificate[0],
-		ServerID:   serverDeviceID.String(),
 		ServerCert: [][]byte{pem.EncodeToMemory(serverCert), pem.EncodeToMemory(serverKey)},
 	})
 	// Save the client list to the file

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
@@ -13,11 +12,6 @@ import (
 
 	"gitlab.torproject.org/acheong08/syndicate/lib"
 	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
-	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
-
-	syncthingprotocol "github.com/syncthing/syncthing/lib/protocol"
-	"github.com/syncthing/syncthing/lib/relay/client"
-	"github.com/syncthing/syncthing/lib/relay/protocol"
 )
 
 func startBroadcast(ctx context.Context, cert tls.Certificate, relayAddress string) error {
@@ -30,44 +24,6 @@ func startBroadcast(ctx context.Context, cert tls.Certificate, relayAddress stri
 	}
 	syncthing.Serve()
 	return nil
-}
-
-func listenRelay(cert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate) (net.Conn, error) {
-	relayURL, _ := url.Parse(relayAddress)
-	// Make a connection to the relay
-	relay, err := client.NewClient(relayURL, []tls.Certificate{cert}, time.Second*10)
-	if err != nil {
-		panic(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go relay.Serve(ctx)
-
-	inviteRecv := make(chan protocol.SessionInvitation)
-	go func() {
-		for invite := range relay.Invitations() {
-			log.Println("Received invite from", invite)
-			fromDevice, _ := syncthingprotocol.DeviceIDFromBytes(invite.From)
-			if !fromDevice.Equals(clientID) {
-				log.Println("Discarding invite from unknown client")
-				continue
-			}
-			select {
-			case inviteRecv <- invite:
-				log.Println("Sent invite to recv")
-			default:
-				log.Println("Discarded invite")
-			}
-		}
-	}()
-
-	conn, err := client.JoinSession(ctx, <-inviteRecv)
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-	log.Printf("Connected to %s", conn.RemoteAddr())
-	return utils.UpgradeServerConn(conn, cert, clientCert, time.Second*5)
 }
 
 func findOptimalRelay(country string) (string, error) {
