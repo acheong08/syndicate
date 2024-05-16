@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	_ "embed"
 	"errors"
 	"log"
@@ -13,10 +12,8 @@ import (
 
 	"gitlab.torproject.org/acheong08/syndicate/lib"
 	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
-	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 
 	"github.com/syncthing/syncthing/lib/protocol"
-	"github.com/syncthing/syncthing/lib/relay/client"
 	"github.com/things-go/go-socks5"
 )
 
@@ -46,6 +43,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	log.SetFlags(log.Lshortfile)
 }
 
 func main() {
@@ -60,24 +58,37 @@ func main() {
 			if err != nil {
 				return err
 			}
-			conn, err := ConnectToRelay(relayAddress)
+			ctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				// We cancel in 10 seconds
+				time.Sleep(time.Second * 10)
+				cancel()
+			}()
+			conn, err := lib.ConnectToRelay(ctx, relayAddress, cert, serverDeviceID, time.Second*10, true)
 			if err != nil {
 				return err
 			}
-			ctx, cancel := context.WithCancel(context.Background())
+			log.Println("Connected to", conn.RemoteAddr())
+			ctx, cancel = context.WithCancel(context.Background())
 			defer cancel()
 		cmdLoop:
 			for {
+				log.Println("Waiting for command")
 				var command [1]byte
-				conn.Read(command[:])
+				_, err = conn.Read(command[:])
+				if err != nil {
+					return err
+				}
 				switch commands.Command(command[0]) {
 				case commands.Socks5:
 					log.Println("Starting Socks5 server with context")
 					err := socksServer(ctx, (*relayAddress).String())
 					if err != nil {
+						log.Println("Socks error")
 						return err
 					}
 				case commands.Exit:
+					log.Println("Recieved exit command")
 					break cmdLoop
 				}
 			}
@@ -94,48 +105,27 @@ func main() {
 }
 
 func socksServer(ctx context.Context, relayAddress string) error {
-	clientCert, err := x509.ParseCertificate(certPem)
-	if err != nil {
-		return err
-	}
+	log.Println("Starting socks5 server")
 	connChan := make(chan net.Conn)
-	err = lib.ListenRelay(ctx, cert, relayAddress, clientDeviceID, clientCert, connChan)
+	err := lib.ListenRelay(ctx, cert, relayAddress, serverDeviceID, nil, connChan)
 	if err != nil {
 		return err
 	}
 	socks5Server := socks5.NewServer()
-	go func() {
-		for {
-			select {
-			case conn := <-connChan:
-				go func() {
-					// Start a SOCKS5 server
-					err := socks5Server.ServeConn(conn)
-					if err != nil {
-						log.Println(err)
-					}
-				}()
-			case <-ctx.Done():
-				return
-			}
+	for {
+		select {
+		case conn := <-connChan:
+			go func() {
+				// Start a SOCKS5 server
+				err := socks5Server.ServeConn(conn)
+				if err != nil {
+					log.Println(err)
+				}
+			}()
+		case <-ctx.Done():
+			return nil
 		}
-	}()
-	return nil
-}
-
-func ConnectToRelay(relayAddress *url.URL) (net.Conn, error) {
-	ctx := context.Background()
-
-	invite, err := client.GetInvitationFromRelay(ctx, relayAddress, serverDeviceID, []tls.Certificate{cert}, timeout)
-	if err != nil {
-		return nil, err
 	}
-
-	conn, err := client.JoinSession(ctx, invite)
-	if err != nil {
-		return nil, err
-	}
-	return utils.UpgradeClientConn(conn, cert, time.Second*5)
 }
 
 func getRelay(syncthing lib.Syncthing) (relayAddress *url.URL, err error) {

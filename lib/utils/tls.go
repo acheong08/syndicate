@@ -8,21 +8,9 @@ import (
 	"errors"
 	"log"
 	"net"
-	"time"
 )
 
-func UpgradeClientConn(conn net.Conn, cert tls.Certificate, timeout time.Duration) (net.Conn, error) {
-	return doWithTimeout(func(res chan net.Conn, errChan chan error) {
-		conn, err := upgradeClientConn(conn, cert)
-		if err != nil {
-			errChan <- err
-		} else {
-			res <- conn
-		}
-	}, timeout)
-}
-
-func upgradeClientConn(conn net.Conn, cert tls.Certificate) (net.Conn, error) {
+func UpgradeClientConn(conn net.Conn, cert tls.Certificate) (net.Conn, error) {
 	tlsConfig := tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		InsecureSkipVerify: true,
@@ -32,68 +20,45 @@ func upgradeClientConn(conn net.Conn, cert tls.Certificate) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := magic(tlsConn, false); err != nil {
+	log.Println("Waiting for magic")
+	if err := magic(tlsConn); err != nil {
 		return nil, err
 	}
-	return tlsConn, err
+	log.Println("Magic success")
+	return tlsConn, nil
 }
 
-func doWithTimeout(fn func(chan net.Conn, chan error), timeout time.Duration) (net.Conn, error) {
-	res := make(chan net.Conn, 1)
-	errChan := make(chan error, 1)
-	go fn(res, errChan)
-	select {
-	case conn := <-res:
-		return conn, nil
-	case err := <-errChan:
-		return nil, err
-	case <-time.After(timeout):
-		return nil, errors.New("timeout")
-	}
-}
-
-func UpgradeServerConn(conn net.Conn, cert tls.Certificate, clientCert *x509.Certificate, timeout time.Duration) (net.Conn, error) {
-	return doWithTimeout(func(res chan net.Conn, errChan chan error) {
-		conn, err := upgradeServerConn(conn, cert, clientCert)
-		if err != nil {
-			errChan <- err
-		} else {
-			res <- conn
-		}
-	}, timeout)
-}
-
-func upgradeServerConn(conn net.Conn, cert tls.Certificate, clientCert *x509.Certificate) (net.Conn, error) {
-	clientCertPool := x509.NewCertPool()
-	clientCertPool.AddCert(clientCert)
+func UpgradeServerConn(conn net.Conn, cert tls.Certificate, clientCert *x509.Certificate) (net.Conn, error) {
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    clientCertPool,
+		InsecureSkipVerify: true,
+	}
+	if clientCert != nil {
+		clientCertPool := x509.NewCertPool()
+		clientCertPool.AddCert(clientCert)
+		tlsConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientCAs:    clientCertPool,
+		}
 	}
 	var err error
 	tlsConn := tls.Server(conn, tlsConfig)
 	if err = tlsConn.Handshake(); err != nil {
+		log.Println("TLS connection failed")
 		return nil, err
 	}
 	log.Println("TLS handshake completed")
 	// We read before writing to prevent EOF to client
-	if err = magic(tlsConn, true); err != nil {
+	if err = magic(tlsConn); err != nil {
 		return nil, err
 	}
 	log.Println("Magic succeeded")
 	return tlsConn, err
 }
 
-func magic(conn net.Conn, readFirst bool) error {
-	if readFirst {
-		if err := readMagic(conn); err != nil {
-			return err
-		}
-		if err := writeMagic(conn); err != nil {
-			return err
-		}
-	} else {
+func magic(conn net.Conn) error {
+	// Do this a few times just to make sure
+	for i := 0; i < 3; i++ {
 		if err := writeMagic(conn); err != nil {
 			return err
 		}
