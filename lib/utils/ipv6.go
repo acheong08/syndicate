@@ -4,9 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"net"
+	"net/url"
+	"strconv"
 
 	"github.com/syncthing/syncthing/lib/protocol"
 )
@@ -17,6 +20,21 @@ var (
 	ErrInvalidMagic  = errors.New("invalid magic number")
 	ErrNoSafeAddress = errors.New("failed to generate a safe address")
 )
+
+func ToURL(ips []net.IP, ports []uint16) ([]*url.URL, error) {
+	if len(ips) != len(ports) {
+		return nil, errors.New("mismatched lengths")
+	}
+	urls := make([]*url.URL, len(ips))
+	var err error
+	for i := range ips {
+		urls[i], err = url.Parse(fmt.Sprintf("udp://%s:%d", ips[i], ports[i]))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return urls, nil
+}
 
 func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint16, err error) {
 	// If r is all zeros, let the last byte be 1
@@ -63,6 +81,20 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 		ips[i], ports[i], err = ChunkToAddress(chunk[:], r)
 	}
 	return
+}
+
+func DecodeURLs(url []url.URL) ([]byte, error) {
+	ips := make([]net.IP, len(url))
+	ports := make([]uint16, len(url))
+	for i, u := range url {
+		ips[i] = net.ParseIP(u.Host)
+		port, err := strconv.Atoi(u.Port())
+		if err != nil {
+			return nil, err
+		}
+		ports[i] = uint16(port)
+	}
+	return DecodeIPv6(ips, ports, [DEVICE_ID_LENGTH]byte{})
 }
 
 func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) ([]byte, error) {

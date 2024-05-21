@@ -14,10 +14,10 @@ import (
 	"github.com/things-go/go-socks5"
 )
 
-func StartSocksServer(ctx context.Context, relayAddress string, cert tls.Certificate, deviceID protocol.DeviceID) error {
+func StartSocksServer(ctx context.Context, relayAddress string, cert tls.Certificate, clientDeviceID protocol.DeviceID) error {
 	log.Println("Starting socks5 server")
 	connChan := make(chan net.Conn)
-	err := ListenRelay(ctx, cert, relayAddress, nil, nil, connChan)
+	err := ListenRelay(ctx, cert, relayAddress, &clientDeviceID, nil, connChan)
 	if err != nil {
 		return err
 	}

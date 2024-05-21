@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -10,21 +8,8 @@ import (
 	"net/url"
 	"time"
 
-	"gitlab.torproject.org/acheong08/syndicate/lib"
 	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
 )
-
-func startBroadcast(ctx context.Context, cert tls.Certificate, relayAddress string) error {
-	lister := relay.AddressLister{
-		RelayAddress: relayAddress,
-	}
-	syncthing, err := lib.NewSyncthing(ctx, cert, &lister)
-	if err != nil {
-		return err
-	}
-	syncthing.Serve()
-	return nil
-}
 
 func findOptimalRelay(country string) (string, error) {
 	relays, err := relay.FetchRelays()

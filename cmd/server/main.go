@@ -3,18 +3,18 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
+	"encoding/binary"
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"log"
-	"net"
-	"net/url"
+	"math/rand"
 	"os"
 	"os/signal"
 
 	"gitlab.torproject.org/acheong08/syndicate/lib"
 	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
+	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
+	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 
 	"github.com/leaanthony/clir"
 )
@@ -71,54 +71,37 @@ func main() {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
+		// Encode command and randomness to IPv6
+		b := make([]byte, 5)
+		// The first byte is the command
+		b[0] = byte(commandStruct.Command)
+		// The next 4 bytes is a uint32 random number
+		binary.BigEndian.PutUint32(b[1:], rand.Uint32())
+		ips, ports, err := utils.EncodeIPv6(b, client.ClientID)
+		if err != nil {
+			panic(err)
+		}
+		// Convert to URLs to pass into address lister
+		urls, err := utils.ToURL(ips, ports)
+		if err != nil {
+			panic(err)
+		}
+		lister := relay.AddressLister{
+			RelayAddress:  relayAddress,
+			DataAddresses: urls,
+		}
 		// Start broadcasting
-		if err := startBroadcast(ctx, cert, relayAddress); err != nil {
-			panic(err)
-		}
-		clientCert, err := x509.ParseCertificate(client.ClientCert)
-		// Wait for a connection through the relay
-		conn, err := lib.ListenSingleRelay(cert, relayAddress, client.ClientID, clientCert)
+		syncthing, err := lib.NewSyncthing(ctx, cert, &lister)
 		if err != nil {
 			panic(err)
 		}
-		defer conn.Close()
-		defer conn.Write([]byte{commands.Exit})
-		log.Println("Writing command", commandStruct)
-		_, err = conn.Write([]byte{byte(commandStruct.Command)})
-		if err != nil {
-			panic(err)
-		}
-		// Try reading a byte to ensure the connection hasn't died
-		// _, err = conn.Read(make([]byte, 1))
-		// if err != nil {
-		// 	log.Println("Connection died. This happens randomly sometimes. Try again")
-		// 	return err
-		// }
-		switch commandStruct.Command {
-		case commands.Socks5:
-			{
-				listen, err := net.Listen("tcp", "127.0.0.1:1070")
-				if err != nil {
-					return err
-				}
-				go func() {
-					for {
-						socksConn, err := listen.Accept()
-						if err != nil {
-							return
-						}
-						log.Println("Got connection", socksConn.RemoteAddr())
-						relayURL, _ := url.Parse(relayAddress)
-						go handleSocks(relayURL, socksConn, client.ClientID, cert)
-					}
-				}()
-			}
-		}
+		syncthing.Serve()
 
 		// Wait for exit signal
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt)
+		<-sigChan
 
 		return nil
 	})

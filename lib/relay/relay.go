@@ -3,6 +3,7 @@ package relay
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 )
 
 func FetchRelays() (*Relays, error) {
@@ -22,11 +23,17 @@ func FetchRelays() (*Relays, error) {
 }
 
 type AddressLister struct {
-	RelayAddress string
+	RelayAddress  string
+	DataAddresses []*url.URL
 }
 
 func (a AddressLister) ExternalAddresses() []string {
-	return []string{a.RelayAddress}
+	addresses := make([]string, len(a.DataAddresses)+1)
+	addresses[0] = a.RelayAddress
+	for i, addr := range a.DataAddresses {
+		addresses[i+1] = addr.String()
+	}
+	return addresses
 }
 
 func (a AddressLister) AllAddresses() []string {

