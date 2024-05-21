@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"log"
 	"net"
 	"net/url"
@@ -87,14 +88,14 @@ func ListenSingleRelay(cert tls.Certificate, relayAddress string, clientID synct
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connChan := make(chan net.Conn)
-	err := ListenRelay(ctx, cert, relayAddress, clientID, clientCert, connChan)
+	err := ListenRelay(ctx, cert, relayAddress, &clientID, clientCert, connChan)
 	if err != nil {
 		return nil, err
 	}
 	return <-connChan, nil
 }
 
-func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate, connChan chan net.Conn) error {
+func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress string, clientID *syncthingprotocol.DeviceID, clientCert *x509.Certificate, connChan chan net.Conn) error {
 	relayURL, _ := url.Parse(relayAddress)
 	// Make a connection to the relay
 	relay, err := client.NewClient(relayURL, []tls.Certificate{serverCert}, time.Second*10)
@@ -103,12 +104,12 @@ func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress s
 	}
 	go relay.Serve(ctx)
 
-	inviteRecv := make(chan protocol.SessionInvitation)
+	inviteRecv := make(chan protocol.SessionInvitation, 100)
 	go func() {
 		for invite := range relay.Invitations() {
 			log.Println("Received invite from", invite)
 			fromDevice, _ := syncthingprotocol.DeviceIDFromBytes(invite.From)
-			if !fromDevice.Equals(clientID) {
+			if clientID != nil && !fromDevice.Equals(*clientID) {
 				log.Println("Discarding invite from unknown client")
 				continue
 			}
@@ -146,4 +147,75 @@ func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress s
 		}
 	}()
 	return nil
+}
+
+func FindOptimalRelay(country string) (string, error) {
+	relays, err := relay.FetchRelays()
+	if err != nil {
+		return "", err
+	}
+	relays.Filter(func(r relay.Relay) bool {
+		return r.Location.Country == country
+	})
+	relays.Sort(func(a, b relay.Relay) bool {
+		// Use a heuristic to determine the best relay
+		var aScore, bScore int
+		if a.Stats.NumActiveSessions > b.Stats.NumActiveSessions {
+			aScore += 1
+		} else {
+			// We don't add if they are equal
+			bScore += btoi(!(a.Stats.NumActiveSessions == b.Stats.NumActiveSessions))
+		}
+		if a.Stats.UptimeSeconds > b.Stats.UptimeSeconds {
+			aScore++
+		} else {
+			bScore += btoi(!(a.Stats.UptimeSeconds == b.Stats.UptimeSeconds))
+		}
+		aRate := minButNotZero(a.Stats.Options.GlobalRate, a.Stats.Options.PerSessionRate)
+		bRate := minButNotZero(b.Stats.Options.GlobalRate, b.Stats.Options.PerSessionRate)
+		if aRate > bRate {
+			aScore++
+		} else {
+			bScore += btoi(!(aRate == bRate))
+		}
+
+		return aScore > bScore
+	})
+
+	for _, relay := range relays.Relays {
+		// Test connection
+		relayURL, _ := url.Parse(relay.URL)
+		timeout := time.Second * 5
+		conn, err := net.DialTimeout("tcp", relayURL.Host, timeout)
+		if err != nil {
+			log.Printf("Failed to connect to %s: %s", relay.URL, err)
+			continue
+		}
+		if conn != nil {
+			defer conn.Close()
+			log.Println("Successfully connected to", relayURL.String())
+			return relay.URL, nil
+		}
+	}
+	return "", errors.New("No viable relays found")
+}
+
+func minButNotZero(a, b int) int {
+	if a == 0 {
+		return b
+	}
+	if b == 0 {
+		return a
+	}
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

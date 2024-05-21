@@ -6,7 +6,7 @@ import (
 )
 
 func FetchRelays() (*Relays, error) {
-	resp, err := http.Get("https://relays.syncthing.net/endpoint/full")
+	resp, err := http.Get("https://relays.syncthing.net/endpoint")
 	if err != nil {
 		return nil, err
 	}
