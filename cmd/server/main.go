@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
 
@@ -106,7 +108,31 @@ func main() {
 		return nil
 	})
 
-	cli.Run()
+	var relayAddress string
+	socksCmd := cli.NewSubCommand("socks", "Listen for local socks connections and forward to a client")
+	socksCmd.IntFlag("client", "The client index to interact with", &clientIndex)
+	socksCmd.StringFlag("relay", "URL of the relay to use", &relayAddress)
+	socksCmd.Action(func() error {
+		clientList := getClientList()
+		clientEntry := clientList[clientIndex-1]
+		cert, err := tls.X509KeyPair(clientEntry.ServerCert[0], clientEntry.ServerCert[1])
+		if err != nil {
+			panic(err)
+		}
+		listener, _ := net.Listen("tcp", "127.0.0.1:1070")
+		for {
+			socksConn, err := listener.Accept()
+			if err != nil {
+				panic(err)
+			}
+			relayURL, _ := url.Parse(relayAddress)
+			go lib.HandleSocks(relayURL, socksConn, clientEntry.ClientID, cert)
+		}
+	})
+	err := cli.Run()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func getClientList() lib.ClientList {

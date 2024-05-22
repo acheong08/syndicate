@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"log"
+	"net/url"
+	"slices"
 	"time"
 
 	"gitlab.torproject.org/acheong08/syndicate/lib"
@@ -42,11 +44,12 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	clientDeviceID = protocol.NewDeviceID(cert.Certificate[0])
 	log.SetFlags(log.Lshortfile)
 }
 
 func main() {
-	var insID uint32
+	var insID []uint32
 	jobs := make(map[commands.Command]context.CancelFunc)
 	for {
 		err := func() error {
@@ -61,19 +64,30 @@ func main() {
 				return err
 			}
 			relayAddress := addresses[0]
-			data, err := utils.DecodeURLs(addresses[1:])
-			if err != nil {
-				return err
+			var data []byte = nil
+			for _, address := range addresses[1:] {
+				tmpData, err := utils.DecodeURLs([]url.URL{address}, clientDeviceID)
+				if err != nil {
+					return err
+				}
+
+				if len(tmpData) < 5 {
+					return errors.New("recieved insufficient data")
+				}
+				// Check if the instruction ID is already processed
+				commandID := binary.BigEndian.Uint32(tmpData[1:5])
+				if slices.Contains(insID, commandID) {
+					log.Println("Already processed", commandID)
+					continue
+				}
+				data = tmpData
+				insID = append(insID, commandID)
+				break
 			}
-			if len(data) < 5 {
-				return errors.New("recieved insufficient data")
+			if data == nil {
+				return errors.New("all instructions already processed")
 			}
 			command := commands.Command(data[0])
-			commandID := binary.BigEndian.Uint32(data[1:5])
-			if commandID == insID {
-				return nil
-			}
-			insID = commandID
 
 			switch command {
 			case commands.StartSocks5:
@@ -87,7 +101,8 @@ func main() {
 					jobs[command] = cancel
 				}
 			case commands.StopSocks5:
-				if cancel, ok := jobs[command]; ok {
+				if cancel, ok := jobs[commands.StartSocks5]; ok {
+					log.Println("Cancelling socks5 server")
 					cancel()
 					delete(jobs, command)
 				}

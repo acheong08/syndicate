@@ -1,3 +1,4 @@
 /cmd/client/certs
 /client
 /server
+/client-builder

@@ -28,7 +28,7 @@ func ToURL(ips []net.IP, ports []uint16) ([]*url.URL, error) {
 	urls := make([]*url.URL, len(ips))
 	var err error
 	for i := range ips {
-		urls[i], err = url.Parse(fmt.Sprintf("udp://%s:%d", ips[i], ports[i]))
+		urls[i], err = url.Parse(fmt.Sprintf("tcp6://[%s]:%d", ips[i], ports[i]))
 		if err != nil {
 			return nil, err
 		}
@@ -83,18 +83,24 @@ func EncodeIPv6(b []byte, r [DEVICE_ID_LENGTH]byte) (ips []net.IP, ports []uint1
 	return
 }
 
-func DecodeURLs(url []url.URL) ([]byte, error) {
+func DecodeURLs(url []url.URL, r [DEVICE_ID_LENGTH]byte) ([]byte, error) {
+	if len(url) < 1 {
+		panic("no urls passed")
+	}
 	ips := make([]net.IP, len(url))
 	ports := make([]uint16, len(url))
 	for i, u := range url {
-		ips[i] = net.ParseIP(u.Host)
+		ips[i] = net.ParseIP(u.Hostname())
+		if ips[i] == nil {
+			panic("failed to parse ip")
+		}
 		port, err := strconv.Atoi(u.Port())
 		if err != nil {
 			return nil, err
 		}
 		ports[i] = uint16(port)
 	}
-	return DecodeIPv6(ips, ports, [DEVICE_ID_LENGTH]byte{})
+	return DecodeIPv6(ips, ports, r)
 }
 
 func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) ([]byte, error) {
@@ -115,6 +121,7 @@ func DecodeIPv6(ips []net.IP, ports []uint16, r [DEVICE_ID_LENGTH]byte) ([]byte,
 	copy(data[:], chunk[4:])
 	n := 12
 	// Then for each chunk, decode it into the data slice
+	log.Println(ips)
 	for i := 1; i < len(ips); i++ {
 		chunk = ChunkToBytes(ips[i], ports[i], r)
 		if n+16 < len(data) {

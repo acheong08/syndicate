@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 )
@@ -33,6 +34,7 @@ func (a AddressLister) ExternalAddresses() []string {
 	for i, addr := range a.DataAddresses {
 		addresses[i+1] = addr.String()
 	}
+	log.Println("Broadcasting addresses:", addresses)
 	return addresses
 }
 

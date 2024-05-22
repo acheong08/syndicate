@@ -42,7 +42,11 @@ func ParseCommand(line string) (*CommandStruct, error) {
 	}
 	switch arg[0] {
 	case "socks":
-		cs.Command = StartSocks5
+		if len(arg) == 1 || arg[1] == "start" {
+			cs.Command = StartSocks5
+		} else if arg[1] == "stop" {
+			cs.Command = StopSocks5
+		}
 	case "sh":
 		cs.Command = ShellTCP
 	case "kill":
@@ -73,6 +77,9 @@ func ParseCommand(line string) (*CommandStruct, error) {
 		cs.Arguments = append(cs.Arguments, arg[1])
 	default:
 		return nil, errors.New("unknown command")
+	}
+	if cs.Command == 0 {
+		return nil, errors.New("invalid command")
 	}
 	return &cs, nil
 }
