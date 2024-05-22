@@ -3,7 +3,6 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -11,19 +10,20 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
 const DEVICE_ID_LENGTH = protocol.DeviceIDLength
 
 var (
-	ErrInvalidMagic  = errors.New("invalid magic number")
-	ErrNoSafeAddress = errors.New("failed to generate a safe address")
+	ErrInvalidMagic  = eris.New("invalid magic number")
+	ErrNoSafeAddress = eris.New("failed to generate a safe address")
 )
 
 func ToURL(ips []net.IP, ports []uint16) ([]*url.URL, error) {
 	if len(ips) != len(ports) {
-		return nil, errors.New("mismatched lengths")
+		return nil, eris.New("mismatched lengths between ip and port")
 	}
 	urls := make([]*url.URL, len(ips))
 	var err error
@@ -96,7 +96,7 @@ func DecodeURLs(url []url.URL, r [DEVICE_ID_LENGTH]byte) ([]byte, error) {
 		}
 		port, err := strconv.Atoi(u.Port())
 		if err != nil {
-			return nil, err
+			return nil, eris.Wrapf(err, "failed to convert port %s to integer", u.Port())
 		}
 		ports[i] = uint16(port)
 	}

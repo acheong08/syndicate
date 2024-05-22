@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"log"
 	"net"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
 	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 
+	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/connections/registry"
 	"github.com/syncthing/syncthing/lib/discover"
 	"github.com/syncthing/syncthing/lib/events"
@@ -54,13 +54,13 @@ func (s *Syncthing) Serve() {
 func (s *Syncthing) Lookup(id syncthingprotocol.DeviceID) ([]url.URL, error) {
 	addresses, err := s.disco.Lookup(s.ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "syncthing discovery lookup failed")
 	}
 	urls := make([]url.URL, len(addresses))
 	for i, addr := range addresses {
 		url, err := url.Parse(addr)
 		if err != nil {
-			return nil, err
+			return nil, eris.Wrapf(err, "%s is not a valid URL", addr)
 		}
 		urls[i] = *url
 	}
@@ -70,13 +70,12 @@ func (s *Syncthing) Lookup(id syncthingprotocol.DeviceID) ([]url.URL, error) {
 func ConnectToRelay(ctx context.Context, relayAddress *url.URL, cert tls.Certificate, deviceID syncthingprotocol.DeviceID, timeout time.Duration, useTls bool) (net.Conn, error) {
 	invite, err := client.GetInvitationFromRelay(ctx, relayAddress, deviceID, []tls.Certificate{cert}, timeout)
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "Failed to get relay invitation")
 	}
 
 	conn, err := client.JoinSession(ctx, invite)
 	if err != nil {
-		log.Println("Failed to join session")
-		return nil, err
+		return nil, eris.Wrap(err, "Failed to join relay session")
 	}
 	if !useTls {
 		return conn, nil
@@ -90,7 +89,7 @@ func ListenSingleRelay(cert tls.Certificate, relayAddress string, clientID synct
 	connChan := make(chan net.Conn)
 	err := ListenRelay(ctx, cert, relayAddress, &clientID, clientCert, connChan)
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "Relay listener failed")
 	}
 	return <-connChan, nil
 }
@@ -100,7 +99,7 @@ func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress s
 	// Make a connection to the relay
 	relay, err := client.NewClient(relayURL, []tls.Certificate{serverCert}, time.Second*10)
 	if err != nil {
-		return err
+		return eris.Wrap(err, "Could not create relay client. This should never happen")
 	}
 	go relay.Serve(ctx)
 
@@ -128,6 +127,7 @@ func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress s
 			case invite := <-inviteRecv:
 				conn, err := client.JoinSession(ctx, invite)
 				if err != nil {
+					log.Println("Could not join session with invite", invite)
 					continue
 				}
 				log.Println("Connected to", conn.RemoteAddr())
@@ -138,6 +138,7 @@ func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress s
 				}
 				tlsConn, err := utils.UpgradeServerConn(conn, serverCert, clientCert)
 				if err != nil {
+					log.Println("Failed to upgrade connection to TLS")
 					continue
 				}
 				connChan <- tlsConn
@@ -197,7 +198,7 @@ func FindOptimalRelay(country string) (string, error) {
 			return relay.URL, nil
 		}
 	}
-	return "", errors.New("No viable relays found")
+	return "", eris.New("No viable relays found")
 }
 
 func minButNotZero(a, b int) int {

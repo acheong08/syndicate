@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -19,6 +18,7 @@ import (
 	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 
 	"github.com/leaanthony/clir"
+	"github.com/rotisserie/eris"
 )
 
 func main() {
@@ -49,13 +49,12 @@ func main() {
 			for i, client := range clientList {
 				fmt.Printf("%d: %s\n", i+1, client.String())
 			}
-			return errors.New("invalid arguments")
+			return eris.New("invalid arguments")
 		}
 
 		commandStruct, err := commands.ParseCommand(commandText)
 		if err != nil {
-			fmt.Println("The command entered was invalid")
-			return err
+			return eris.Wrap(err, "failed to parse command")
 		}
 		if countryCode == "" {
 			countryCode = "GB"
@@ -65,11 +64,11 @@ func main() {
 		// Find optimal relay
 		relayAddress, err := findOptimalRelay(countryCode)
 		if err != nil {
-			panic(err)
+			return eris.Wrap(err, "failed to find optimal relay")
 		}
 		cert, err := tls.X509KeyPair(client.ServerCert[0], client.ServerCert[1])
 		if err != nil {
-			panic(err)
+			return eris.Wrap(err, "failed to load client certificate")
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -82,12 +81,12 @@ func main() {
 		binary.BigEndian.PutUint32(b[1:], rand.Uint32())
 		ips, ports, err := utils.EncodeIPv6(b, client.ClientID)
 		if err != nil {
-			panic(err)
+			return eris.Wrap(err, "could not encode data to IPv6")
 		}
 		// Convert to URLs to pass into address lister
 		urls, err := utils.ToURL(ips, ports)
 		if err != nil {
-			panic(err)
+			return eris.Wrap(err, "could not convert ips/ports to URLs")
 		}
 		lister := relay.AddressLister{
 			RelayAddress:  relayAddress,
@@ -96,7 +95,7 @@ func main() {
 		// Start broadcasting
 		syncthing, err := lib.NewSyncthing(ctx, cert, &lister)
 		if err != nil {
-			panic(err)
+			return eris.Wrap(err, "could not create syncthing instance")
 		}
 		syncthing.Serve()
 
@@ -117,13 +116,14 @@ func main() {
 		clientEntry := clientList[clientIndex-1]
 		cert, err := tls.X509KeyPair(clientEntry.ServerCert[0], clientEntry.ServerCert[1])
 		if err != nil {
-			panic(err)
+			return eris.Wrap(err, "failed to load client certificate")
 		}
 		listener, _ := net.Listen("tcp", "127.0.0.1:1070")
 		for {
 			socksConn, err := listener.Accept()
 			if err != nil {
-				panic(err)
+				fmt.Println(eris.ToString(eris.Wrap(err, "Failed to accept incoming socks connection"), true))
+				continue
 			}
 			relayURL, _ := url.Parse(relayAddress)
 			go lib.HandleSocks(relayURL, socksConn, clientEntry.ClientID, cert)
@@ -131,7 +131,7 @@ func main() {
 	})
 	err := cli.Run()
 	if err != nil {
-		panic(err)
+		fmt.Println(eris.ToString(err, true))
 	}
 }
 

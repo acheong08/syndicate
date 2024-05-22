@@ -5,9 +5,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
-	"errors"
 	"log"
 	"net"
+
+	"github.com/rotisserie/eris"
 )
 
 func UpgradeClientConn(conn net.Conn, cert tls.Certificate) (net.Conn, error) {
@@ -18,11 +19,11 @@ func UpgradeClientConn(conn net.Conn, cert tls.Certificate) (net.Conn, error) {
 	tlsConn := tls.Client(conn, &tlsConfig)
 	err := tlsConn.Handshake()
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "Could not complete TLS handshake")
 	}
 	log.Println("Waiting for magic")
 	if err := magic(tlsConn); err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "Magic handshake failed")
 	}
 	log.Println("Magic success")
 	return tlsConn, nil
@@ -44,26 +45,25 @@ func UpgradeServerConn(conn net.Conn, cert tls.Certificate, clientCert *x509.Cer
 	var err error
 	tlsConn := tls.Server(conn, tlsConfig)
 	if err = tlsConn.Handshake(); err != nil {
-		log.Println("TLS connection failed")
-		return nil, err
+		return nil, eris.Wrap(err, "Could not complete TLS handshake")
 	}
 	log.Println("TLS handshake completed")
 	// We read before writing to prevent EOF to client
 	if err = magic(tlsConn); err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "Magic handshake failed")
 	}
 	log.Println("Magic succeeded")
-	return tlsConn, err
+	return tlsConn, nil
 }
 
 func magic(conn net.Conn) error {
 	// Do this a few times just to make sure
 	for i := 0; i < 3; i++ {
 		if err := writeMagic(conn); err != nil {
-			return err
+			return eris.Wrap(err, "Could not write magic")
 		}
 		if err := readMagic(conn); err != nil {
-			return err
+			return eris.Wrap(err, "Could not read magic")
 		}
 	}
 	return nil
@@ -83,7 +83,7 @@ func readMagic(conn net.Conn) error {
 		return err
 	}
 	if binary.LittleEndian.Uint64(buf) != 0xdeadface {
-		return errors.New("invalid magic number")
+		return eris.New("invalid magic number")
 	}
 	return nil
 }

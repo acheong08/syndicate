@@ -5,19 +5,21 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+
+	"github.com/rotisserie/eris"
 )
 
 func FetchRelays() (*Relays, error) {
 	resp, err := http.Get("https://relays.syncthing.net/endpoint")
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "failed to fetch relays endpoint")
 	}
 	defer resp.Body.Close()
 
 	var relays Relays
 	err = json.NewDecoder(resp.Body).Decode(&relays)
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrap(err, "Could not decode relays as JSON")
 	}
 
 	return &relays, nil

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"
 	"github.com/things-go/go-socks5"
 )
@@ -19,7 +20,7 @@ func StartSocksServer(ctx context.Context, relayAddress string, cert tls.Certifi
 	connChan := make(chan net.Conn)
 	err := ListenRelay(ctx, cert, relayAddress, &clientDeviceID, nil, connChan)
 	if err != nil {
-		return err
+		return eris.Wrap(err, "Could not start socks server due to relay")
 	}
 	socks5Server := socks5.NewServer()
 	for {
@@ -40,13 +41,13 @@ func StartSocksServer(ctx context.Context, relayAddress string, cert tls.Certifi
 	}
 }
 
-func HandleSocks(relayAddress *url.URL, socksConn net.Conn, deviceID protocol.DeviceID, cert tls.Certificate) {
+func HandleSocks(relayAddress *url.URL, socksConn net.Conn, deviceID protocol.DeviceID, cert tls.Certificate) error {
 	log.Println("Got socks connection")
 	defer socksConn.Close()
 	// Connect to relay
 	relayConn, err := ConnectToRelay(context.Background(), relayAddress, cert, deviceID, time.Second*5, false)
 	if err != nil {
-		return
+		return eris.Wrap(err, "failed to connect to relay")
 	}
 	defer relayConn.Close()
 	// Copy/Connect local socks connection and relay connection
@@ -61,4 +62,5 @@ func HandleSocks(relayAddress *url.URL, socksConn net.Conn, deviceID protocol.De
 		io.Copy(socksConn, relayConn)
 	}()
 	wg.Wait()
+	return nil
 }

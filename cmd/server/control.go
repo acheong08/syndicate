@@ -1,13 +1,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
 	"net/url"
 	"time"
 
+	"github.com/rotisserie/eris"
 	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
 )
 
@@ -59,7 +59,7 @@ func findOptimalRelay(country string) (string, error) {
 			return relay.URL, nil
 		}
 	}
-	return "", errors.New("No viable relays found")
+	return "", eris.New("No viable relays found")
 }
 
 func minButNotZero(a, b int) int {

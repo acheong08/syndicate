@@ -9,7 +9,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/gob"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"gitlab.torproject.org/acheong08/syndicate/lib"
 
+	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"
 	"github.com/syncthing/syncthing/lib/rand"
 )
@@ -181,6 +181,6 @@ func pemBlockForKey(priv interface{}) (*pem.Block, error) {
 		}
 		return &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}, nil
 	default:
-		return nil, errors.New("unknown key type")
+		return nil, eris.New("unknown key type")
 	}
 }

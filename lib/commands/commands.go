@@ -1,8 +1,9 @@
 package commands
 
 import (
-	"errors"
 	"strings"
+
+	"github.com/rotisserie/eris"
 )
 
 type Command uint8
@@ -38,7 +39,7 @@ func ParseCommand(line string) (*CommandStruct, error) {
 	// Split by space
 	arg := strings.Split(line, " ")
 	if len(arg) < 1 {
-		return nil, errors.New("empty string")
+		return nil, eris.New("empty string")
 	}
 	switch arg[0] {
 	case "socks":
@@ -54,32 +55,32 @@ func ParseCommand(line string) (*CommandStruct, error) {
 	case "send":
 		cs.Command = SendFile
 		if len(arg) != 3 {
-			return nil, errors.New("send: <local> <remote>")
+			return nil, eris.New("send: <local> <remote>")
 		}
 		cs.Arguments = append(cs.Arguments, arg[1], arg[2])
 	case "recv":
 		cs.Command = ReceiveFile
 		if len(arg) != 3 {
-			return nil, errors.New("recv: <remote> <local>")
+			return nil, eris.New("recv: <remote> <local>")
 		}
 		cs.Arguments = append(cs.Arguments, arg[1], arg[2])
 	case "updateid":
 		cs.Command = UpdateID
 		if len(arg) != 2 {
-			return nil, errors.New("updateid: <newid>")
+			return nil, eris.New("updateid: <newid>")
 		}
 		cs.Arguments = append(cs.Arguments, arg[1])
 	case "update":
 		cs.Command = UpdateBinary
 		if len(arg) != 2 {
-			return nil, errors.New("update: <local>")
+			return nil, eris.New("update: <local>")
 		}
 		cs.Arguments = append(cs.Arguments, arg[1])
 	default:
-		return nil, errors.New("unknown command")
+		return nil, eris.New("unknown command")
 	}
 	if cs.Command == 0 {
-		return nil, errors.New("invalid command")
+		return nil, eris.New("invalid command")
 	}
 	return &cs, nil
 }
