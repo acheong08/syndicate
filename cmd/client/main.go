@@ -62,7 +62,7 @@ func main() {
 		err := func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-			syncthing, err := lib.NewSyncthing(ctx, cert, nil)
+			syncthing, err := lib.NewSyncthing(ctx, cert, nil, false)
 			if err != nil {
 				return err
 			}

@@ -21,7 +21,8 @@ import (
 	"github.com/syncthing/syncthing/lib/relay/protocol"
 )
 
-const SYNCTHING_DISCOVERY_URL = "https://discovery.syncthing.net/v2/?id=LYXKCHX-VI3NYZR-ALCJBHF-WMZYSPK-QG6QJA3-MPFYMSO-U56GTUK-NA2MIAW"
+const SYNCTHING_ANNOUNCE_URL = "https://discovery-announce-v4.syncthing.net/v2/?nolookup"
+const SYNCTHING_LOOKUP_URL = "https://discovery-lookup.syncthing.net/v2/?noannounce"
 
 type Syncthing struct {
 	disco discover.FinderService
@@ -30,14 +31,18 @@ type Syncthing struct {
 
 // NewSyncthing creates a new syncthing instance
 // The lister should internally point to a modifiable list.
-func NewSyncthing(ctx context.Context, cert tls.Certificate, lister *relay.AddressLister) (*Syncthing, error) {
+func NewSyncthing(ctx context.Context, cert tls.Certificate, lister *relay.AddressLister, announce bool) (*Syncthing, error) {
 	var list discover.AddressLister
 	if lister != nil {
 		list = *lister
 	} else {
 		list = relay.AddressLister{}
 	}
-	disco, err := discover.NewGlobal(SYNCTHING_DISCOVERY_URL, cert, list, events.NoopLogger, registry.New())
+	discoveryUrl := SYNCTHING_LOOKUP_URL
+	if announce {
+		discoveryUrl = SYNCTHING_ANNOUNCE_URL
+	}
+	disco, err := discover.NewGlobal(discoveryUrl, cert, list, events.NoopLogger, registry.New())
 	if err != nil {
 		return nil, err
 	}
@@ -155,9 +160,13 @@ func FindOptimalRelay(country string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	relays.Filter(func(r relay.Relay) bool {
-		return r.Location.Country == country
-	})
+	// relays.Filter(func(r relay.Relay) bool {
+	// 	if country == "" {
+	// 		return true
+	// 	}
+	// 	return r.Location.Country == country
+	// })
+	// log.Printf("Found %d relays", len(relays.Relays))
 	relays.Sort(func(a, b relay.Relay) bool {
 		// Use a heuristic to determine the best relay
 		var aScore, bScore int

@@ -62,7 +62,7 @@ func main() {
 
 		client := clientList[clientIndex-1]
 		// Find optimal relay
-		relayAddress, err := findOptimalRelay(countryCode)
+		relayAddress, err := lib.FindOptimalRelay(countryCode)
 		if err != nil {
 			return eris.Wrap(err, "failed to find optimal relay")
 		}
@@ -93,7 +93,7 @@ func main() {
 			DataAddresses: urls,
 		}
 		// Start broadcasting
-		syncthing, err := lib.NewSyncthing(ctx, cert, &lister)
+		syncthing, err := lib.NewSyncthing(ctx, cert, &lister, true)
 		if err != nil {
 			return eris.Wrap(err, "could not create syncthing instance")
 		}
@@ -125,7 +125,10 @@ func main() {
 				fmt.Println(eris.ToString(eris.Wrap(err, "Failed to accept incoming socks connection"), true))
 				continue
 			}
-			relayURL, _ := url.Parse(relayAddress)
+			relayURL, err := url.Parse(relayAddress)
+			if err != nil {
+				return eris.Wrap(err, "Failed to parse relay address")
+			}
 			go lib.HandleSocks(relayURL, socksConn, clientEntry.ClientID, cert)
 		}
 	})
