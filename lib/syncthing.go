@@ -3,14 +3,12 @@ package lib
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"log"
 	"net"
 	"net/url"
 	"time"
 
 	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
-	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
 
 	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/connections/registry"
@@ -72,7 +70,7 @@ func (s *Syncthing) Lookup(id syncthingprotocol.DeviceID) ([]url.URL, error) {
 	return urls, nil
 }
 
-func ConnectToRelay(ctx context.Context, relayAddress *url.URL, cert tls.Certificate, deviceID syncthingprotocol.DeviceID, timeout time.Duration, useTls bool) (net.Conn, error) {
+func ConnectToRelay(ctx context.Context, relayAddress *url.URL, cert tls.Certificate, deviceID syncthingprotocol.DeviceID, timeout time.Duration) (net.Conn, error) {
 	invite, err := client.GetInvitationFromRelay(ctx, relayAddress, deviceID, []tls.Certificate{cert}, timeout)
 	if err != nil {
 		return nil, eris.Wrap(err, "Failed to get relay invitation")
@@ -82,24 +80,10 @@ func ConnectToRelay(ctx context.Context, relayAddress *url.URL, cert tls.Certifi
 	if err != nil {
 		return nil, eris.Wrap(err, "Failed to join relay session")
 	}
-	if !useTls {
-		return conn, nil
-	}
-	return utils.UpgradeClientConn(conn, cert)
+	return conn, nil
 }
 
-func ListenSingleRelay(cert tls.Certificate, relayAddress string, clientID syncthingprotocol.DeviceID, clientCert *x509.Certificate) (net.Conn, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	connChan := make(chan net.Conn)
-	err := ListenRelay(ctx, cert, relayAddress, &clientID, clientCert, connChan)
-	if err != nil {
-		return nil, eris.Wrap(err, "Relay listener failed")
-	}
-	return <-connChan, nil
-}
-
-func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress string, clientID *syncthingprotocol.DeviceID, clientCert *x509.Certificate, connChan chan net.Conn) error {
+func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress string, clientID *syncthingprotocol.DeviceID, connChan chan net.Conn) error {
 	relayURL, _ := url.Parse(relayAddress)
 	// Make a connection to the relay
 	relay, err := client.NewClient(relayURL, []tls.Certificate{serverCert}, time.Second*10)
@@ -136,17 +120,8 @@ func ListenRelay(ctx context.Context, serverCert tls.Certificate, relayAddress s
 					continue
 				}
 				log.Println("Connected to", conn.RemoteAddr())
-				if clientCert == nil {
-					log.Println("Using plain connection")
-					connChan <- conn
-					continue
-				}
-				tlsConn, err := utils.UpgradeServerConn(conn, serverCert, clientCert)
-				if err != nil {
-					log.Println("Failed to upgrade connection to TLS")
-					continue
-				}
-				connChan <- tlsConn
+				connChan <- conn
+				continue
 			case <-ctx.Done():
 				return
 			}

@@ -18,7 +18,7 @@ import (
 func StartSocksServer(ctx context.Context, relayAddress string, cert tls.Certificate, clientDeviceID protocol.DeviceID) error {
 	log.Println("Starting socks5 server")
 	connChan := make(chan net.Conn)
-	err := ListenRelay(ctx, cert, relayAddress, &clientDeviceID, nil, connChan)
+	err := ListenRelay(ctx, cert, relayAddress, &clientDeviceID, connChan)
 	if err != nil {
 		return eris.Wrap(err, "Could not start socks server due to relay")
 	}
@@ -45,7 +45,7 @@ func HandleSocks(relayAddress *url.URL, socksConn net.Conn, deviceID protocol.De
 	log.Println("Got socks connection")
 	defer socksConn.Close()
 	// Connect to relay
-	relayConn, err := ConnectToRelay(context.Background(), relayAddress, cert, deviceID, time.Second*5, false)
+	relayConn, err := ConnectToRelay(context.Background(), relayAddress, cert, deviceID, time.Second*5)
 	if err != nil {
 		return eris.Wrap(err, "failed to connect to relay")
 	}
