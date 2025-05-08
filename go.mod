@@ -1,4 +1,4 @@
-module gitlab.torproject.org/acheong08/syndicate
+module github.com/acheong08/syndicate
 
 go 1.23.0
 

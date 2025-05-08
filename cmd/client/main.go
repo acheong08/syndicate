@@ -11,9 +11,9 @@ import (
 	"slices"
 	"time"
 
-	"gitlab.torproject.org/acheong08/syndicate/lib"
-	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
-	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
+	"github.com/acheong08/syndicate/lib"
+	"github.com/acheong08/syndicate/lib/commands"
+	"github.com/acheong08/syndicate/lib/utils"
 
 	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.torproject.org/acheong08/syndicate/lib"
+	"github.com/acheong08/syndicate/lib"
 
 	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"

@@ -12,10 +12,10 @@ import (
 	"os"
 	"os/signal"
 
-	"gitlab.torproject.org/acheong08/syndicate/lib"
-	"gitlab.torproject.org/acheong08/syndicate/lib/commands"
-	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
-	"gitlab.torproject.org/acheong08/syndicate/lib/utils"
+	"github.com/acheong08/syndicate/lib"
+	"github.com/acheong08/syndicate/lib/commands"
+	"github.com/acheong08/syndicate/lib/relay"
+	"github.com/acheong08/syndicate/lib/utils"
 
 	"github.com/leaanthony/clir"
 	"github.com/rotisserie/eris"

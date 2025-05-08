@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"gitlab.torproject.org/acheong08/syndicate/lib/relay"
+	"github.com/acheong08/syndicate/lib/relay"
 
 	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/connections/registry"
