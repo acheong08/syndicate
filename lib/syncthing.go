@@ -11,6 +11,7 @@ import (
 	"github.com/acheong08/syndicate/lib/relay"
 
 	"github.com/rotisserie/eris"
+	"github.com/syncthing/syncthing/lib/config"
 	"github.com/syncthing/syncthing/lib/connections/registry"
 	"github.com/syncthing/syncthing/lib/discover"
 	"github.com/syncthing/syncthing/lib/events"
@@ -18,9 +19,6 @@ import (
 	"github.com/syncthing/syncthing/lib/relay/client"
 	"github.com/syncthing/syncthing/lib/relay/protocol"
 )
-
-const SYNCTHING_ANNOUNCE_URL = "https://discovery-announce-v4.syncthing.net/v2/?nolookup"
-const SYNCTHING_LOOKUP_URL = "https://discovery-lookup.syncthing.net/v2/?noannounce"
 
 type Syncthing struct {
 	disco discover.FinderService
@@ -36,9 +34,9 @@ func NewSyncthing(ctx context.Context, cert tls.Certificate, lister *relay.Addre
 	} else {
 		list = relay.AddressLister{}
 	}
-	discoveryUrl := SYNCTHING_LOOKUP_URL
+	discoveryUrl := config.DefaultDiscoveryServersV4[0]
 	if announce {
-		discoveryUrl = SYNCTHING_ANNOUNCE_URL
+		discoveryUrl = config.DefaultDiscoveryServersV4[1]
 	}
 	disco, err := discover.NewGlobal(discoveryUrl, cert, list, events.NoopLogger, registry.New())
 	if err != nil {

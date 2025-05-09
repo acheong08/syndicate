@@ -10,7 +10,7 @@ import (
 )
 
 func FetchRelays() (*Relays, error) {
-	resp, err := http.Get("https://relays.syncthing.net/endpoint")
+	resp, err := http.Get("https://relays.syncthing.net/endpoint/full")
 	if err != nil {
 		return nil, eris.Wrap(err, "failed to fetch relays endpoint")
 	}
