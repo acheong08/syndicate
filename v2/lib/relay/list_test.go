@@ -2,7 +2,6 @@ package relay_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/acheong08/syndicate/v2/lib/relay"
 )
