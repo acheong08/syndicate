@@ -7,10 +7,6 @@ import (
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
-type GlobalConfig struct {
-	Endpoints Endpoints
-}
-
 type ClientConfig struct {
 	MasterDeviceID protocol.DeviceID
 	Certificate    tls.Certificate
@@ -41,8 +37,8 @@ func (g clientConfig) Parse() (gc ClientConfig) {
 	return
 }
 
-type Endpoints struct {
-	RelayStat         string
-	DiscoveryLookup   string
-	DiscoveryAnnounce string
-}
+// type Endpoints struct {
+// 	RelayStat         string
+// 	DiscoveryLookup   string
+// 	DiscoveryAnnounce string
+// }
