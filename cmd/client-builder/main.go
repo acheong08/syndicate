@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/gob"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/acheong08/syndicate/lib"
 
-	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/protocol"
 	"github.com/syncthing/syncthing/lib/rand"
 )
@@ -170,7 +170,7 @@ func generateCertificate(commonName string, lifetimeDays int) (*pem.Block, *pem.
 	return certBlock, keyBlock, nil
 }
 
-func pemBlockForKey(priv interface{}) (*pem.Block, error) {
+func pemBlockForKey(priv any) (*pem.Block, error) {
 	switch k := priv.(type) {
 	case *rsa.PrivateKey:
 		return &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}, nil
@@ -181,6 +181,6 @@ func pemBlockForKey(priv interface{}) (*pem.Block, error) {
 		}
 		return &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}, nil
 	default:
-		return nil, eris.New("unknown key type")
+		return nil, errors.New("unknown key type")
 	}
 }

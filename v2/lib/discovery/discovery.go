@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/acheong08/syndicate/v2/lib/crypto"
 	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/config"
 	"github.com/syncthing/syncthing/lib/discover"
@@ -67,17 +68,24 @@ func (n noopLister) AllAddresses() []string {
 	return []string{}
 }
 
-func LookupDevice(ctx context.Context, cert tls.Certificate, deviceId protocol.DeviceID, endpointOption DiscoveryEndpointOption) ([]string, error) {
-	var discoEndpoints DiscoveryEndpoints
+func GetDiscoEndpoint(endpointOption DiscoveryEndpointOption) DiscoveryEndpoints {
 	switch endpointOption {
 	case OptDiscoEndpointV4:
-		discoEndpoints = discoveryEndpointsV4
+		return discoveryEndpointsV4
 	case OptDiscoEndpointV6:
-		discoEndpoints = discoveryEndpointsV6
+		return discoveryEndpointsV6
 	case OptDiscoEndpointAuto:
-		discoEndpoints = getDiscoveryEndpointsAuto()
+		return getDiscoveryEndpointsAuto()
+	default:
+		panic("unreachable")
 	}
-	disco, err := discover.NewGlobal(discoEndpoints.Lookup, cert, noopLister{}, events.NoopLogger, nil)
+}
+
+func LookupDevice(ctx context.Context, deviceId protocol.DeviceID, discoEndpoint DiscoveryEndpoints) ([]string, error) {
+	// Generate certificate since it's not necessary for lookup
+	cert, err := crypto.NewCertificate("syncthing", 1) // It doesn't need to last since it's single use
+
+	disco, err := discover.NewGlobal(discoEndpoint.Lookup, cert, noopLister{}, events.NoopLogger, nil)
 	if err != nil {
 		return nil, eris.Wrap(err, "failed to create discovery service")
 	}
