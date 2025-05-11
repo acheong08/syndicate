@@ -18,6 +18,10 @@ type Relays struct {
 	Relays []Relay `json:"relays"`
 }
 
+func (rs Relays) First() Relay {
+	return rs.Relays[0]
+}
+
 func (rs *Relays) Filter(f func(Relay) bool) {
 	var relays []Relay
 	for _, r := range rs.Relays {

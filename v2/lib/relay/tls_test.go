@@ -1,47 +1,18 @@
 package relay_test
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"testing"
-	"time"
 
+	"github.com/acheong08/syndicate/v2/lib/crypto"
 	"github.com/syncthing/syncthing/lib/protocol"
 )
-
-// generateSelfSignedCert creates a self-signed certificate and returns tls.Certificate and raw DER bytes.
-func generateSelfSignedCert() (tls.Certificate, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return tls.Certificate{}, nil, err
-	}
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "test"},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return tls.Certificate{}, nil, err
-	}
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	return cert, derBytes, err
-}
 
 func TestDeviceIdIdentical(t *testing.T) {
 	var clientSeenDevice protocol.DeviceID
 	var serverSeenDevice protocol.DeviceID
 
-	cert, _, err := generateSelfSignedCert()
+	cert, err := crypto.NewCertificate("syncthing", 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -71,7 +42,7 @@ func TestDeviceIdIdentical(t *testing.T) {
 		close(done)
 	}()
 
-	clientCert, _, err := generateSelfSignedCert()
+	clientCert, err := crypto.NewCertificate("syncthing", 1)
 	if err != nil {
 		t.Error(err)
 	}
