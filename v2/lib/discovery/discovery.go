@@ -9,6 +9,7 @@ import (
 	"github.com/acheong08/syndicate/v2/lib/crypto"
 	"github.com/rotisserie/eris"
 	"github.com/syncthing/syncthing/lib/config"
+	"github.com/syncthing/syncthing/lib/connections/registry"
 	"github.com/syncthing/syncthing/lib/discover"
 	"github.com/syncthing/syncthing/lib/events"
 	"github.com/syncthing/syncthing/lib/protocol"
@@ -94,4 +95,24 @@ func LookupDevice(ctx context.Context, deviceId protocol.DeviceID, discoEndpoint
 		return nil, eris.Wrap(err, "address lookup failed")
 	}
 	return addresses, nil
+}
+
+func Broadcast(ctx context.Context, cert tls.Certificate, lister discover.AddressLister, discoEndpoint DiscoveryEndpoints) error {
+	disco, err := discover.NewGlobal(discoEndpoint.Announce, cert, lister, events.NoopLogger, registry.New())
+	if err != nil {
+		return eris.Wrap(err, "failed to create discovery service")
+	}
+	return disco.Serve(ctx)
+}
+
+type AddressLister struct {
+	Addresses []string
+}
+
+func (a AddressLister) ExternalAddresses() []string {
+	return a.Addresses
+}
+
+func (a AddressLister) AllAddresses() []string {
+	return a.Addresses
 }
