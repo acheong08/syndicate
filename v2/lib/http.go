@@ -2,53 +2,21 @@ package lib
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
-	"log"
+	"errors"
 	"net"
 	"net/http"
-
-	"github.com/acheong08/syndicate/v2/lib/relay"
-	"github.com/rotisserie/eris"
-	"github.com/syncthing/syncthing/lib/relay/protocol"
 )
 
-func ServeMux(ctx context.Context, relayAddress string, mux *http.ServeMux, cert tls.Certificate) error {
-	// if numRelays < 1 {
-	// 	numRelays = 1
-	// }
-	// relays, err := relay.FindOptimal(ctx, "DE", numRelays)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// if len(relays.Relays) < numRelays {
-	// 	return fmt.Errorf("not enough relays available")
-	// }
-	connChan := make(chan net.Conn)
+var ErrListenerClosed = errors.New("listener closed")
+
+func ServeMux(ctx context.Context, mux *http.ServeMux, connChan <-chan net.Conn) error {
 	listener := ConnListener{connChan, make(chan struct{})}
-	// for i := range min(len(relays.Relays), numRelays) {
-	invite, err := relay.Listen(ctx, relayAddress, cert)
-	if err != nil {
-		return eris.Wrap(err, "could not listen on relay")
-	}
-	go func(invites <-chan protocol.SessionInvitation) {
-		for {
-			select {
-			case invite := <-invites:
-				conn, _, err := relay.CreateSession(ctx, invite, cert, nil)
-				if err != nil {
-					log.Printf("ERROR: Relay session creation failed with %s", err)
-					continue
-				}
-				connChan <- conn
-			case <-ctx.Done():
-				listener.Close()
-				return
-			}
+	go func() {
+		select {
+		case <-ctx.Done():
+			listener.Close()
 		}
-	}(invite)
-	// }
+	}()
 	return http.Serve(listener, mux)
 }
 
@@ -62,7 +30,7 @@ func (l ConnListener) Accept() (net.Conn, error) {
 	case conn := <-l.connCh:
 		return conn, nil
 	case <-l.closed:
-		return nil, fmt.Errorf("listener closed")
+		return nil, ErrListenerClosed
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -36,11 +37,34 @@ func TestHttpServing(t *testing.T) {
 		}
 		w.Write([]byte("Hello world"))
 	})
+	invites, err := relay.Listen(ctx, relays.First().URL, serverCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log.Println("Server recieved invite")
 	go func() {
-		if err := lib.ServeMux(ctx, relays.First().URL, mux, serverCert); err != nil {
-			panic(err)
+		connChan := make(chan net.Conn)
+		go func() {
+			if err := lib.ServeMux(ctx, mux, connChan); err != nil {
+				panic(err)
+			}
+		}()
+		for {
+			select {
+			case invite := <-invites:
+				serverConn, _, err := relay.CreateSession(ctx, invite, serverCert, nil)
+				if err != nil {
+					panic(err)
+				}
+				defer serverConn.Close()
+				connChan <- serverConn
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
+
+	log.Println("Server session created")
 	clientCert, _ := crypto.NewCertificate("syncthing", 1)
 	invite, err := tryGetInviteUntil(ctx, relays.First().URL, serverDeviceId, clientCert, 10*time.Second)
 	if err != nil {
@@ -52,15 +76,18 @@ func TestHttpServing(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
+	log.Println("Client session created")
 	req, _ := http.NewRequest(http.MethodGet, "http://localhost/eggs?q=magic", nil)
 	if err = req.Write(conn); err != nil {
 		t.Fatal(err)
 	}
+	log.Println("Client request sent")
 	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	log.Println("Client received response")
 	if resp.StatusCode != 200 {
 		t.Fatalf("Got status code %d", resp.StatusCode)
 	}
