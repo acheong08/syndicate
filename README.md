@@ -1,5 +1,11 @@
-Some code demonstrating the use of syncthing infrastructure as command and control transport, proxying, and anonymous communication.
+Demonstration purposes only
 
-This allows an attacker to use victims behind firewalls as proxies to further explore the network without ever exposing their IP address.
+## Motivation
 
-For reference only. Do not use maliciously. Further development is being done in private.
+- With 2 machines, both behind different NAT/firewalls, proxy between them and reach the internal network without requiring a central server or exposing my IP address
+- In censorship heavy countries (e.g. China, Iran, etc), double hop a VPN connection to relays located in friendlier countries to avoid suspicion while appearing as standard TLS
+- Serve content to the outside world from within a NAT similar to ngrok.
+
+## How it works
+
+- syncthing but rather than files we send arbitrary data
