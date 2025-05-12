@@ -1,4 +1,6 @@
 /cmd/client/certs
+trusted.txt
+*.bin
 /client
 /server
 /client-builder

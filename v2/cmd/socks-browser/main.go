@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/acheong08/syndicate/v2/internal"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
 	"github.com/acheong08/syndicate/v2/lib/discovery"
 	"github.com/acheong08/syndicate/v2/lib/relay"
@@ -36,7 +38,7 @@ func (d *HybridDialer) Dial(ctx context.Context, network, addr string) (net.Conn
 	if !strings.HasSuffix(host, ".syncthing") {
 		return d.BaseDialer.DialContext(ctx, network, addr)
 	}
-	log.Printf("Dailing relay %s", host)
+	// log.Printf("Dailing relay %s", host)
 	if d.relayCache == nil {
 		d.relayCache = make(map[protocol.DeviceID][]string)
 	}
@@ -93,7 +95,6 @@ type DNSResolver struct{}
 
 // Resolve implement interface NameResolver
 func (d DNSResolver) Resolve(ctx context.Context, name string) (context.Context, net.IP, error) {
-	log.Printf("Resolving %s", name)
 	if strings.HasSuffix(name, ".syncthing") {
 		return ctx, net.IP{}, nil
 	}
@@ -105,11 +106,23 @@ func (d DNSResolver) Resolve(ctx context.Context, name string) (context.Context,
 }
 
 func main() {
-	clientCert, _ := crypto.NewCertificate("syncthing-client", 1)
+	keysPath := flag.String("keys", "", "Path to gob encoded KeyPair")
+	flag.Parse()
+	var cert tls.Certificate
+	var err error
+	if keysPath == nil || *keysPath == "" {
+		cert, err = crypto.NewCertificate("syncthing-client", 1)
+	} else {
+		cert, err = internal.ReadKeyPair(*keysPath)
+	}
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Starting socks with ID %s", protocol.NewDeviceID(cert.Certificate[0]))
 
 	// Create hybrid dialer with both capabilities
 	dialer := &HybridDialer{
-		ClientCert:        clientCert,
+		ClientCert:        cert,
 		Timeout:           10 * time.Second,
 		BaseDialer:        net.Dialer{},
 		DiscoveryEndpoint: discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto),
