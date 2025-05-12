@@ -18,6 +18,14 @@ type Relays struct {
 	Relays []Relay `json:"relays"`
 }
 
+func (rs Relays) ToSlice() []string {
+	s := make([]string, len(rs.Relays))
+	for i := range rs.Relays {
+		s[i] = rs.Relays[i].URL
+	}
+	return s
+}
+
 func (rs Relays) First() Relay {
 	return rs.Relays[0]
 }

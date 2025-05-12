@@ -8,7 +8,7 @@ require (
 	github.com/leaanthony/clir v1.6.0
 	github.com/rotisserie/eris v0.5.4
 	github.com/syncthing/syncthing v1.29.6
-	github.com/things-go/go-socks5 v0.0.5
+	github.com/things-go/go-socks5 v0.0.6
 )
 
 require (
