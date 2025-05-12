@@ -115,7 +115,12 @@ func List() (r Relays, err error) {
 
 	return relays, nil
 }
-func FindOptimal(country string) (r Relays, err error) {
+func FindOptimal(ctx context.Context, country string, maxResults int) (r Relays, err error) {
+	if maxResults < 1 {
+		panic("must have more than 1 result")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	relays, err := List()
 	if err != nil {
 		return r, eris.Wrap(err, "failed to fetch relay list")
@@ -152,14 +157,11 @@ func FindOptimal(country string) (r Relays, err error) {
 		return aScore > bScore
 	}, true)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	results := make(chan Relay, 10)
+	results := make(chan Relay, maxResults)
 	var wg sync.WaitGroup
-	maxRelays := 10
+	maxRelays := maxResults
 	for i, relay := range relays.Relays {
-		if i >= 20 {
+		if i >= maxResults*2 {
 			break
 		}
 		wg.Add(1)

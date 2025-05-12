@@ -1,7 +1,9 @@
 package relay_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/acheong08/syndicate/v2/lib/relay"
 )
@@ -45,7 +47,9 @@ func TestList(t *testing.T) {
 	}
 }
 func TestOptimalRelays(t *testing.T) {
-	relays, err := relay.FindOptimal("DE")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	relays, err := relay.FindOptimal(ctx, "DE", 10)
 	if err != nil {
 		t.Fatalf("FindOptimal() error: %v", err)
 	}

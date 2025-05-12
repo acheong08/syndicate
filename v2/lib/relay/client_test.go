@@ -20,12 +20,12 @@ var magicSni = "test.relay"
 var magicBytes = []byte{0xde, 0xad, 0xba, 0xbe}
 
 func TestRelayConnection(t *testing.T) {
-	relays, err := relay.FindOptimal("DE")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	relays, err := relay.FindOptimal(ctx, "DE", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	serverCert, _ := crypto.NewCertificate(magicSni, 1)
 	invites, err := relay.Listen(ctx, relays.First().URL, serverCert)
 	if err != nil {
@@ -68,9 +68,6 @@ func TestRelayConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	// if sni != magicSni {
-	// 	t.Fatalf("SNI: expected %s found %s", magicSni, sni)
-	// }
 	handleConn(conn)
 }
 func tryGetInviteUntil(ctx context.Context, relayURL string, serverDeviceId protocol.DeviceID, clientCert tls.Certificate, timeout time.Duration) (relayprotocol.SessionInvitation, error) {
