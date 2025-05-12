@@ -41,6 +41,7 @@ func main() {
 		log.Fatalf("Invalid target URL: %v", err)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy.Transport = &http.Transport{Proxy: nil}
 	proxy.Director = func(req *http.Request) {
 		req.URL.Scheme = targetURL.Scheme
 		req.URL.Host = targetURL.Host
