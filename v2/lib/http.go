@@ -43,6 +43,7 @@ func ServeMux(ctx context.Context, relayAddress string, mux *http.ServeMux, cert
 				}
 				connChan <- conn
 			case <-ctx.Done():
+				listener.Close()
 				return
 			}
 		}
