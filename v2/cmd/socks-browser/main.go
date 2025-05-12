@@ -23,6 +23,7 @@ type HybridDialer struct {
 	Timeout           time.Duration
 	BaseDialer        net.Dialer // For normal traffic
 	DiscoveryEndpoint discovery.DiscoveryEndpoints
+	relayCache        map[protocol.DeviceID][]string
 }
 
 func (d *HybridDialer) Dial(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -36,13 +37,15 @@ func (d *HybridDialer) Dial(ctx context.Context, network, addr string) (net.Conn
 		return d.BaseDialer.DialContext(ctx, network, addr)
 	}
 	log.Printf("Dailing relay %s", host)
+	if d.relayCache == nil {
+		d.relayCache = make(map[protocol.DeviceID][]string)
+	}
 	conn, err := d.dialRelay(ctx, network, host)
 	if err != nil {
 		log.Println("Dial error: ", err)
 		return nil, err
 	}
 	return conn, nil
-
 }
 
 func (d *HybridDialer) dialRelay(ctx context.Context, _, host string) (net.Conn, error) {
@@ -57,9 +60,14 @@ func (d *HybridDialer) dialRelay(ctx context.Context, _, host string) (net.Conn,
 		return nil, fmt.Errorf("invalid device ID: %v", err)
 	}
 
-	relays, err := discovery.LookupDevice(ctx, deviceID, d.DiscoveryEndpoint)
-	if err != nil {
-		return nil, eris.Wrap(err, "failed to look up device")
+	var relays []string
+	var ok bool
+	if relays, ok = d.relayCache[deviceID]; !ok {
+		relays, err = discovery.LookupDevice(ctx, deviceID, d.DiscoveryEndpoint)
+		if err != nil {
+			return nil, eris.Wrap(err, "failed to look up device")
+		}
+		d.relayCache[deviceID] = relays
 	}
 
 	// Get invite and establish relay connection
