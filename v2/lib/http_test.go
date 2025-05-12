@@ -30,7 +30,10 @@ func TestHttpServing(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/eggs", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("q") != "magic" {
+			w.WriteHeader(400)
+		}
 		w.Write([]byte("Hello world"))
 	})
 	go func() {
@@ -49,7 +52,7 @@ func TestHttpServing(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	req, _ := http.NewRequest(http.MethodGet, "http://localhost/", nil)
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost/eggs?q=magic", nil)
 	if err = req.Write(conn); err != nil {
 		t.Fatal(err)
 	}
