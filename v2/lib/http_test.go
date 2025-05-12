@@ -3,8 +3,6 @@ package lib_test
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -12,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/acheong08/syndicate/v2/internal"
 	"github.com/acheong08/syndicate/v2/lib"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
 	"github.com/acheong08/syndicate/v2/lib/relay"
 	"github.com/syncthing/syncthing/lib/protocol"
-	relayprotocol "github.com/syncthing/syncthing/lib/relay/protocol"
 )
 
 func TestHttpServing(t *testing.T) {
@@ -66,7 +64,7 @@ func TestHttpServing(t *testing.T) {
 
 	log.Println("Server session created")
 	clientCert, _ := crypto.NewCertificate("syncthing", 1)
-	invite, err := tryGetInviteUntil(ctx, relays.First().URL, serverDeviceId, clientCert, 10*time.Second)
+	invite, err := internal.TryGetInviteUntil(ctx, relays.First().URL, serverDeviceId, clientCert, 10*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,19 +91,4 @@ func TestHttpServing(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	log.Println(string(body))
-}
-func tryGetInviteUntil(ctx context.Context, relayURL string, serverDeviceId protocol.DeviceID, clientCert tls.Certificate, timeout time.Duration) (relayprotocol.SessionInvitation, error) {
-	deadline := time.Now().Add(timeout)
-	var invite relayprotocol.SessionInvitation
-	var err error
-	for {
-		invite, err = relay.GetInvite(ctx, relayURL, serverDeviceId, clientCert)
-		if err == nil {
-			return invite, nil
-		}
-		if time.Now().After(deadline) {
-			return relayprotocol.SessionInvitation{}, fmt.Errorf("timeout waiting for invite: %w", err)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 }
