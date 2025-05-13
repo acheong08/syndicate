@@ -87,8 +87,6 @@ func main() {
 
 #### Fetching HTTP content over syncthing
 
-You can use the `lib/hybridDialer` to create an `http.Client` that transparently fetches content from `.syncthing` domains via Syncthing relays. The dialer will automatically handle `.syncthing` domains.
-
 ```go
 package main
 

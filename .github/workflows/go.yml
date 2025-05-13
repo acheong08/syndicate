@@ -6,8 +6,12 @@ name: Go
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'v2/**'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'v2/**'
 
 jobs:
 
