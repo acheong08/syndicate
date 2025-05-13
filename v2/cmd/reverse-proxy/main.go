@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"log"
 	"net"
@@ -9,7 +11,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"context"
 
 	"github.com/acheong08/syndicate/v2/internal"
 	"github.com/acheong08/syndicate/v2/lib"
@@ -33,6 +34,7 @@ func main() {
 	target := flag.String("target", "", "target URL for reverse proxy (required)")
 	keysPath := flag.String("keys", "", "Path to gob encoded KeyPair")
 	trustedIdsPath := flag.String("trusted", "", "Path to newline separated by newlines")
+	country := flag.String("country", "", "Country code for relay selection (auto-detect if empty)")
 	flag.Parse()
 	if *target == "" {
 		log.Fatal("The --target flag is required")
@@ -72,7 +74,37 @@ func main() {
 	mux.Handle("/", proxy)
 	connChan := make(chan net.Conn, 5)
 
-	go StartRelayManager(ctx, cert, trustedIds, connChan)
+	var relayCountry string
+	if *country != "" {
+		relayCountry = *country
+	} else {
+		relayCountry, err = detectCountry()
+		if err != nil {
+			log.Printf("Could not auto-detect country, defaulting to 'DE': %v", err)
+			relayCountry = "DE"
+		}
+	}
+
+	go StartRelayManager(ctx, cert, trustedIds, connChan, relayCountry)
 
 	log.Fatal(lib.ServeMux(ctx, mux, connChan))
+}
+
+func detectCountry() (string, error) {
+	type ipinfo struct {
+		Country string `json:"country"`
+	}
+	resp, err := http.Get("https://ipinfo.io/json")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var info ipinfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return "", err
+	}
+	if info.Country == "" {
+		return "", nil
+	}
+	return info.Country, nil
 }

@@ -21,7 +21,6 @@ func bytesToDeviceID(b []byte) protocol.DeviceID {
 }
 
 const (
-	relayCountry      = "DE"
 	relayTargetCount  = 5
 	relayMinThreshold = 3
 	relayRetryDelay   = 10 * time.Second
@@ -33,7 +32,7 @@ type relayListener struct {
 	running bool
 }
 
-func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []protocol.DeviceID, connChan chan net.Conn) {
+func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []protocol.DeviceID, connChan chan net.Conn, relayCountry string) {
 	var (
 		relayMu  sync.Mutex
 		relayMap = make(map[string]*relayListener)
@@ -91,7 +90,7 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 			activeCount := len(relayMap)
 			relayMu.Unlock()
 			if activeCount < relayMinThreshold {
-				log.Printf("Active relays (%d) below threshold (%d), searching for new relays...", activeCount, relayMinThreshold)
+				log.Printf("Active relays (%d) below threshold (%d), searching for new relays in country: %s...", activeCount, relayMinThreshold, relayCountry)
 				relays, err := relay.FindOptimal(ctx, relayCountry, relayTargetCount)
 				if err != nil {
 					log.Printf("Failed to find relays: %v", err)
