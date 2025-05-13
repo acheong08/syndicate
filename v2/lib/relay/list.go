@@ -123,6 +123,7 @@ func List() (r Relays, err error) {
 
 	return relays, nil
 }
+
 func FindOptimal(ctx context.Context, country string, maxResults int) (r Relays, err error) {
 	if maxResults < 1 {
 		panic("must have more than 1 result")
@@ -133,12 +134,11 @@ func FindOptimal(ctx context.Context, country string, maxResults int) (r Relays,
 	if err != nil {
 		return r, eris.Wrap(err, "failed to fetch relay list")
 	}
-	relays.Filter(func(r Relay) bool {
-		if country == "" {
-			return true
-		}
-		return r.Location.Country == country
-	})
+	if country != "" {
+		relays.Filter(func(r Relay) bool {
+			return r.Location.Country == country
+		})
+	}
 	log.Printf("Found %d relays", len(relays.Relays))
 	relays.Sort(func(a, b Relay) bool {
 		// Use a heuristic to determine the best relay
@@ -207,12 +207,14 @@ func FindOptimal(ctx context.Context, country string, maxResults int) (r Relays,
 	}
 	return r, eris.New("No viable relays found")
 }
+
 func btoi(b bool) int {
 	if b {
 		return 1
 	}
 	return 0
 }
+
 func minButNotZero(a, b int) int {
 	if a == 0 {
 		return b

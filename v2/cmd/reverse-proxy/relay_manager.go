@@ -14,12 +14,6 @@ import (
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
-func bytesToDeviceID(b []byte) protocol.DeviceID {
-	var id protocol.DeviceID
-	copy(id[:], b)
-	return id
-}
-
 const (
 	relayTargetCount  = 5
 	relayMinThreshold = 3
@@ -96,6 +90,16 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 					log.Printf("Failed to find relays: %v", err)
 					time.Sleep(relayRetryDelay)
 					continue
+				}
+				// Fallback to global if no relays found for the country
+				if len(relays.Relays) == 0 && relayCountry != "" {
+					log.Printf("No relays found for country '%s', falling back to global relay search.", relayCountry)
+					relays, err = relay.FindOptimal(ctx, "", relayTargetCount)
+					if err != nil {
+						log.Printf("Failed to find global relays: %v", err)
+						time.Sleep(relayRetryDelay)
+						continue
+					}
 				}
 				addresses := relays.ToSlice()
 				go discovery.Broadcast(ctx, cert, discovery.AddressLister{Addresses: addresses}, discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto))
