@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"log"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/acheong08/syndicate/v2/lib/discovery"
 	"github.com/acheong08/syndicate/v2/lib/relay"
 	"github.com/syncthing/syncthing/lib/protocol"
-	"crypto/tls"
 )
 
 func bytesToDeviceID(b []byte) protocol.DeviceID {
@@ -61,7 +62,6 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 				log.Printf("Failed to listen on relay %s: %v", relayURL, err)
 				return
 			}
-			log.Printf("Listening on relay: %s", relayURL)
 			for {
 				select {
 				case <-ctxRelay.Done():
@@ -71,7 +71,7 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 						log.Printf("Invite channel closed for relay %s", relayURL)
 						return
 					}
-					if len(trustedIds) != 0 && !isTrusted(trustedIds, bytesToDeviceID(inv.From)) {
+					if len(trustedIds) != 0 && !isTrusted(trustedIds, inv.From) {
 						continue
 					}
 					conn, _, err := relay.CreateSession(ctxRelay, inv, cert, nil)
@@ -109,11 +109,8 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 	}()
 }
 
-func isTrusted(trustedIds []protocol.DeviceID, from [32]byte) bool {
-	for _, deviceId := range trustedIds {
-		if deviceId == protocol.DeviceID(from) {
-			return true
-		}
-	}
-	return false
+func isTrusted(trustedIds []protocol.DeviceID, from []byte) bool {
+	return slices.ContainsFunc(trustedIds, func(id protocol.DeviceID) bool {
+		return slices.Equal(from, id[:])
+	})
 }
