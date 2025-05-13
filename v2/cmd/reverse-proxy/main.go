@@ -85,7 +85,7 @@ func main() {
 		}
 	}
 
-	go StartRelayManager(ctx, cert, trustedIds, connChan, relayCountry)
+	go lib.StartRelayManager(ctx, cert, trustedIds, connChan, relayCountry)
 
 	log.Fatal(lib.ServeMux(ctx, mux, connChan))
 }
