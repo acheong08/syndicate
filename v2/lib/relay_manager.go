@@ -81,9 +81,15 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 						log.Printf("Error on invite session for relay %s: %s", relayURL, err)
 						continue
 					}
-					relayChan <- relayOut{
+					// Avoid sending to relayChan while holding relayMu
+					select {
+					case relayChan <- relayOut{
 						Conn: conn,
 						Sni:  sni,
+					}:
+					case <-ctxRelay.Done():
+						conn.Close()
+						return
 					}
 				}
 			}
@@ -92,8 +98,9 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 
 	go func() {
 		for {
+			var activeCount int
 			relayMu.Lock()
-			activeCount := len(relayMap)
+			activeCount = len(relayMap)
 			relayMu.Unlock()
 			if activeCount < relayMinThreshold {
 				log.Printf("Active relays (%d) below threshold (%d), searching for new relays in country: %s...", activeCount, relayMinThreshold, relayCountry)
@@ -115,6 +122,7 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 				}
 				addressLister.UpdateAddresses(relays.ToSlice())
 				for _, r := range relays.Relays {
+					// startRelayListener may lock relayMu, so do not hold it here
 					startRelayListener(ctx, r.URL)
 				}
 			}
