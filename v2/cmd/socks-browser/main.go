@@ -25,7 +25,13 @@ type HybridDialer struct {
 	Timeout           time.Duration
 	BaseDialer        net.Dialer // For normal traffic
 	DiscoveryEndpoint discovery.DiscoveryEndpoints
-	relayCache        map[protocol.DeviceID][]string
+	relayCache        map[protocol.DeviceID]relayCacheEntry
+	relayCacheTTL     time.Duration
+}
+
+type relayCacheEntry struct {
+	relays    []string
+	timestamp time.Time
 }
 
 func (d *HybridDialer) Dial(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -40,7 +46,7 @@ func (d *HybridDialer) Dial(ctx context.Context, network, addr string) (net.Conn
 	}
 	// log.Printf("Dailing relay %s", host)
 	if d.relayCache == nil {
-		d.relayCache = make(map[protocol.DeviceID][]string)
+		d.relayCache = make(map[protocol.DeviceID]relayCacheEntry)
 	}
 	conn, err := d.dialRelay(ctx, network, host)
 	if err != nil {
@@ -63,13 +69,19 @@ func (d *HybridDialer) dialRelay(ctx context.Context, _, host string) (net.Conn,
 	}
 
 	var relays []string
-	var ok bool
-	if relays, ok = d.relayCache[deviceID]; !ok {
+	now := time.Now()
+	entry, ok := d.relayCache[deviceID]
+	if ok && now.Sub(entry.timestamp) < d.relayCacheTTL {
+		relays = entry.relays
+	} else {
 		relays, err = discovery.LookupDevice(ctx, deviceID, d.DiscoveryEndpoint)
 		if err != nil {
 			return nil, eris.Wrap(err, "failed to look up device")
 		}
-		d.relayCache[deviceID] = relays
+		d.relayCache[deviceID] = relayCacheEntry{
+			relays:    relays,
+			timestamp: now,
+		}
 	}
 
 	// Get invite and establish relay connection
@@ -126,6 +138,7 @@ func main() {
 		Timeout:           10 * time.Second,
 		BaseDialer:        net.Dialer{},
 		DiscoveryEndpoint: discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto),
+		relayCacheTTL:     5 * time.Minute, // cache expiry time
 	}
 
 	server := socks5.NewServer(socks5.WithDial(dialer.Dial), socks5.WithResolver(DNSResolver{}))
