@@ -29,6 +29,69 @@ type HybridDialer struct {
 	relayCacheTTL     time.Duration
 }
 
+// HybridDialerOption is a functional option for HybridDialer
+type HybridDialerOption func(*HybridDialer)
+
+// WithTimeout sets the timeout for the HybridDialer
+func WithTimeout(timeout time.Duration) HybridDialerOption {
+	return func(h *HybridDialer) {
+		h.Timeout = timeout
+	}
+}
+
+// WithBaseDialer sets the base dialer for the HybridDialer
+func WithBaseDialer(dialer net.Dialer) HybridDialerOption {
+	return func(h *HybridDialer) {
+		h.BaseDialer = dialer
+	}
+}
+
+// WithDiscoveryEndpoint sets the discovery endpoint for the HybridDialer
+func WithDiscoveryEndpoint(endpoint discovery.DiscoveryEndpoints) HybridDialerOption {
+	return func(h *HybridDialer) {
+		h.DiscoveryEndpoint = endpoint
+	}
+}
+
+// WithRelayCacheTTL sets the relay cache TTL for the HybridDialer
+func WithRelayCacheTTL(ttl time.Duration) HybridDialerOption {
+	return func(h *HybridDialer) {
+		h.relayCacheTTL = ttl
+	}
+}
+
+// NewHybridDialer constructs a HybridDialer with safe defaults and applies any options.
+func NewHybridDialer(cert tls.Certificate, opts ...HybridDialerOption) *HybridDialer {
+	h := &HybridDialer{
+		ClientCert:        cert,
+		Timeout:           10 * time.Second,
+		BaseDialer:        net.Dialer{},
+		DiscoveryEndpoint: discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto),
+		relayCache:        make(map[protocol.DeviceID]relayCacheEntry),
+		relayCacheTTL:     5 * time.Minute,
+	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	// Ensure relayCache is always non-nil
+	if h.relayCache == nil {
+		h.relayCache = make(map[protocol.DeviceID]relayCacheEntry)
+	}
+	// Ensure DiscoveryEndpoint is set
+	if h.DiscoveryEndpoint.Lookup == "" && h.DiscoveryEndpoint.Announce == "" {
+		h.DiscoveryEndpoint = discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto)
+	}
+	// Ensure Timeout is set
+	if h.Timeout == 0 {
+		h.Timeout = 10 * time.Second
+	}
+	// Ensure relayCacheTTL is set
+	if h.relayCacheTTL == 0 {
+		h.relayCacheTTL = 5 * time.Minute
+	}
+	return h
+}
+
 type relayCacheEntry struct {
 	relays    []string
 	timestamp time.Time
@@ -45,9 +108,7 @@ func (d *HybridDialer) Dial(ctx context.Context, network, addr string) (net.Conn
 		return d.BaseDialer.DialContext(ctx, network, addr)
 	}
 	// log.Printf("Dailing relay %s", host)
-	if d.relayCache == nil {
-		d.relayCache = make(map[protocol.DeviceID]relayCacheEntry)
-	}
+	// relayCache is guaranteed non-nil by constructor
 	conn, err := d.dialRelay(ctx, network, host)
 	if err != nil {
 		log.Println("Dial error: ", err)
@@ -133,13 +194,7 @@ func main() {
 	log.Printf("Starting socks with ID %s", protocol.NewDeviceID(cert.Certificate[0]))
 
 	// Create hybrid dialer with both capabilities
-	dialer := &HybridDialer{
-		ClientCert:        cert,
-		Timeout:           10 * time.Second,
-		BaseDialer:        net.Dialer{},
-		DiscoveryEndpoint: discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto),
-		relayCacheTTL:     5 * time.Minute, // cache expiry time
-	}
+	dialer := NewHybridDialer(cert)
 
 	server := socks5.NewServer(socks5.WithDial(dialer.Dial), socks5.WithResolver(DNSResolver{}))
 
