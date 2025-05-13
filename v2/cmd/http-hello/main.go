@@ -8,10 +8,14 @@ import (
 
 	"github.com/acheong08/syndicate/v2/lib"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
+	"github.com/syncthing/syncthing/lib/logger"
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
 func main() {
+	logger.DefaultLogger.AddHandler(logger.LevelVerbose, func(l logger.LogLevel, msg string) {
+		log.Println(l, msg)
+	})
 	cert, _ := crypto.NewCertificate("syncthing", 1)
 	log.Printf("Server ID: %s", protocol.NewDeviceID(cert.Certificate[0]))
 	ctx, cancel := context.WithCancel(context.Background())

@@ -32,6 +32,8 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 		relayMap = make(map[string]*relayListener)
 	)
 
+	addressLister := discovery.NewAddressLister()
+	go discovery.Broadcast(ctx, cert, &addressLister, discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto))
 	startRelayListener := func(ctx context.Context, relayURL string) {
 		ctxRelay, stop := context.WithCancel(ctx)
 		relayMu.Lock()
@@ -101,8 +103,7 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 						continue
 					}
 				}
-				addresses := relays.ToSlice()
-				go discovery.Broadcast(ctx, cert, discovery.AddressLister{Addresses: addresses}, discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto))
+				addressLister.UpdateAddresses(relays.ToSlice())
 				for _, r := range relays.Relays {
 					startRelayListener(ctx, r.URL)
 				}

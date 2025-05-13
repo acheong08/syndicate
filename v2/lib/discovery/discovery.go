@@ -38,8 +38,10 @@ type DiscoveryEndpoints struct {
 	Announce string
 }
 
-var discoveryEndpointsV6 = DiscoveryEndpoints{config.DefaultDiscoveryServersV6[0], config.DefaultDiscoveryServersV6[1]}
-var discoveryEndpointsV4 = DiscoveryEndpoints{config.DefaultDiscoveryServersV4[0], config.DefaultDiscoveryServersV4[1]}
+var (
+	discoveryEndpointsV6 = DiscoveryEndpoints{config.DefaultDiscoveryServersV6[0], config.DefaultDiscoveryServersV6[1]}
+	discoveryEndpointsV4 = DiscoveryEndpoints{config.DefaultDiscoveryServersV4[0], config.DefaultDiscoveryServersV4[1]}
+)
 
 func getDiscoveryEndpointsAuto() DiscoveryEndpoints {
 	if isIPv6Available() {
@@ -97,22 +99,42 @@ func LookupDevice(ctx context.Context, deviceId protocol.DeviceID, discoEndpoint
 	return addresses, nil
 }
 
-func Broadcast(ctx context.Context, cert tls.Certificate, lister discover.AddressLister, discoEndpoint DiscoveryEndpoints) error {
-	disco, err := discover.NewGlobal(discoEndpoint.Announce, cert, lister, events.NoopLogger, registry.New())
+func Broadcast(ctx context.Context, cert tls.Certificate, lister *addressLister, discoEndpoint DiscoveryEndpoints) error {
+	if lister == nil {
+		panic("address lister cannot be nil")
+	}
+	logger := events.NewLogger()
+	lister.OnUpdate = func(s []string) {
+		logger.Log(events.ListenAddressesChanged, nil)
+	}
+	go logger.Serve(ctx)
+	disco, err := discover.NewGlobal(discoEndpoint.Announce, cert, lister, logger, registry.New())
 	if err != nil {
 		return eris.Wrap(err, "failed to create discovery service")
 	}
 	return disco.Serve(ctx)
 }
 
-type AddressLister struct {
-	Addresses []string
+type addressLister struct {
+	addresses []string
+	OnUpdate  func([]string)
 }
 
-func (a AddressLister) ExternalAddresses() []string {
-	return a.Addresses
+func NewAddressLister() addressLister {
+	return addressLister{}
 }
 
-func (a AddressLister) AllAddresses() []string {
-	return a.Addresses
+func (a *addressLister) UpdateAddresses(addresses []string) {
+	a.addresses = addresses
+	if a.OnUpdate != nil {
+		a.OnUpdate(a.addresses)
+	}
+}
+
+func (a addressLister) ExternalAddresses() []string {
+	return a.addresses
+}
+
+func (a addressLister) AllAddresses() []string {
+	return a.addresses
 }

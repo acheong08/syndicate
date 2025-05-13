@@ -17,13 +17,14 @@ func TestBroadcastLookup(t *testing.T) {
 	cert, _ := crypto.NewCertificate("syncthing", 1)
 	deviceId := protocol.NewDeviceID(cert.Certificate[0])
 	endpoint := discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto)
-	lister := discovery.AddressLister{[]string{magicAddress}}
+	lister := discovery.NewAddressLister()
+	lister.UpdateAddresses([]string{magicAddress})
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(1*time.Minute))
 	defer cancel()
 	go func() {
 		log.Printf("Broadcasting address: %s", magicAddress)
-		if err := discovery.Broadcast(ctx, cert, lister, endpoint); err != nil {
+		if err := discovery.Broadcast(ctx, cert, &lister, endpoint); err != nil {
 			if err.Error() != "context canceled" {
 				panic(err)
 			}
