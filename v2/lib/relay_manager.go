@@ -26,11 +26,18 @@ type relayListener struct {
 	running bool
 }
 
-func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []protocol.DeviceID, connChan chan net.Conn, relayCountry string) {
+type relayOut struct {
+	Conn net.Conn
+	Sni  string
+}
+
+func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []protocol.DeviceID, relayCountry string) <-chan relayOut {
 	var (
 		relayMu  sync.Mutex
 		relayMap = make(map[string]*relayListener)
 	)
+
+	relayChan := make(chan relayOut)
 
 	addressLister := discovery.NewAddressLister()
 	go discovery.Broadcast(ctx, cert, &addressLister, discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto))
@@ -69,12 +76,15 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 					if len(trustedIds) != 0 && !isTrusted(trustedIds, inv.From) {
 						continue
 					}
-					conn, _, err := relay.CreateSession(ctxRelay, inv, cert, nil)
+					conn, sni, err := relay.CreateSession(ctxRelay, inv, cert, nil)
 					if err != nil {
 						log.Printf("Error on invite session for relay %s: %s", relayURL, err)
 						continue
 					}
-					connChan <- conn
+					relayChan <- relayOut{
+						Conn: conn,
+						Sni:  sni,
+					}
 				}
 			}
 		}()
@@ -111,6 +121,7 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 			time.Sleep(relayRetryDelay)
 		}
 	}()
+	return relayChan
 }
 
 func isTrusted(trustedIds []protocol.DeviceID, from []byte) bool {
