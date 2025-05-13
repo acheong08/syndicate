@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/acheong08/syndicate/v2/lib"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
@@ -47,6 +48,15 @@ func main() {
 		}
 	}()
 
-	go log.Fatal(lib.ServeMux(ctx, mux1, mux1Chan))
-	log.Fatal(lib.ServeMux(ctx, mux2, mux2Chan))
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		log.Fatal(lib.ServeMux(ctx, mux1, mux1Chan))
+	}()
+	go func() {
+		defer wg.Done()
+		log.Fatal(lib.ServeMux(ctx, mux2, mux2Chan))
+	}()
+	wg.Wait()
 }
