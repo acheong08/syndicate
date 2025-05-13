@@ -1,0 +1,119 @@
+package main
+
+import (
+	"context"
+	"log"
+	"net"
+	"sync"
+	"time"
+
+	"github.com/acheong08/syndicate/v2/lib/discovery"
+	"github.com/acheong08/syndicate/v2/lib/relay"
+	"github.com/syncthing/syncthing/lib/protocol"
+	"crypto/tls"
+)
+
+func bytesToDeviceID(b []byte) protocol.DeviceID {
+	var id protocol.DeviceID
+	copy(id[:], b)
+	return id
+}
+
+const (
+	relayCountry      = "DE"
+	relayTargetCount  = 5
+	relayMinThreshold = 3
+	relayRetryDelay   = 10 * time.Second
+)
+
+type relayListener struct {
+	url     string
+	stop    context.CancelFunc
+	running bool
+}
+
+func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []protocol.DeviceID, connChan chan net.Conn) {
+	var (
+		relayMu  sync.Mutex
+		relayMap = make(map[string]*relayListener)
+	)
+
+	startRelayListener := func(ctx context.Context, relayURL string) {
+		ctxRelay, stop := context.WithCancel(ctx)
+		relayMu.Lock()
+		if _, exists := relayMap[relayURL]; exists {
+			relayMu.Unlock()
+			stop()
+			return
+		}
+		rl := &relayListener{url: relayURL, stop: stop, running: true}
+		relayMap[relayURL] = rl
+		relayMu.Unlock()
+
+		go func() {
+			defer func() {
+				relayMu.Lock()
+				delete(relayMap, relayURL)
+				relayMu.Unlock()
+			}()
+			invites, err := relay.Listen(ctxRelay, relayURL, cert)
+			if err != nil {
+				log.Printf("Failed to listen on relay %s: %v", relayURL, err)
+				return
+			}
+			log.Printf("Listening on relay: %s", relayURL)
+			for {
+				select {
+				case <-ctxRelay.Done():
+					return
+				case inv, ok := <-invites:
+					if !ok {
+						log.Printf("Invite channel closed for relay %s", relayURL)
+						return
+					}
+					if len(trustedIds) != 0 && !isTrusted(trustedIds, bytesToDeviceID(inv.From)) {
+						continue
+					}
+					conn, _, err := relay.CreateSession(ctxRelay, inv, cert, nil)
+					if err != nil {
+						log.Printf("Error on invite session for relay %s: %s", relayURL, err)
+						continue
+					}
+					connChan <- conn
+				}
+			}
+		}()
+	}
+
+	go func() {
+		for {
+			relayMu.Lock()
+			activeCount := len(relayMap)
+			relayMu.Unlock()
+			if activeCount < relayMinThreshold {
+				log.Printf("Active relays (%d) below threshold (%d), searching for new relays...", activeCount, relayMinThreshold)
+				relays, err := relay.FindOptimal(ctx, relayCountry, relayTargetCount)
+				if err != nil {
+					log.Printf("Failed to find relays: %v", err)
+					time.Sleep(relayRetryDelay)
+					continue
+				}
+				addresses := relays.ToSlice()
+				go discovery.Broadcast(ctx, cert, discovery.AddressLister{Addresses: addresses}, discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto))
+				for _, r := range relays.Relays {
+					startRelayListener(ctx, r.URL)
+				}
+			}
+			time.Sleep(relayRetryDelay)
+		}
+	}()
+}
+
+func isTrusted(trustedIds []protocol.DeviceID, from [32]byte) bool {
+	for _, deviceId := range trustedIds {
+		if deviceId == protocol.DeviceID(from) {
+			return true
+		}
+	}
+	return false
+}
