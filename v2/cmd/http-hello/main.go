@@ -8,7 +8,6 @@ import (
 
 	"github.com/acheong08/syndicate/v2/lib"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
-	"github.com/syncthing/syncthing/lib/logger"
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
@@ -18,14 +17,36 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/eggs", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("q") != "magic" {
-			w.WriteHeader(400)
-		}
-		w.Write([]byte("Hello world"))
+	mux1 := http.NewServeMux()
+	mux1.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello from subdomain 1"))
 	})
-	connChan := make(chan net.Conn, 5)
-	go lib.StartRelayManager(ctx, cert, []protocol.DeviceID{}, connChan, "")
-	log.Fatal(lib.ServeMux(ctx, mux, connChan))
+	mux2 := http.NewServeMux()
+	mux2.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello from subdomain 2"))
+	})
+	relayChan := lib.StartRelayManager(ctx, cert, []protocol.DeviceID{}, "DE")
+	mux1Chan := make(chan net.Conn, 5)
+	mux2Chan := make(chan net.Conn, 5)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case relayOut := <-relayChan:
+				switch relayOut.Sni {
+				case "1":
+					mux1Chan <- relayOut.Conn
+				case "2":
+					mux2Chan <- relayOut.Conn
+				default:
+					relayOut.Conn.Close()
+				}
+				log.Println("Recieved connection from: ", relayOut.Sni)
+			}
+		}
+	}()
+
+	go log.Fatal(lib.ServeMux(ctx, mux1, mux1Chan))
+	log.Fatal(lib.ServeMux(ctx, mux2, mux2Chan))
 }
