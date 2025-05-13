@@ -43,7 +43,6 @@ func main() {
 				default:
 					relayOut.Conn.Close()
 				}
-				log.Println("Recieved connection from: ", relayOut.Sni)
 			}
 		}
 	}()

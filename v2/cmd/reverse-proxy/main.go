@@ -85,7 +85,17 @@ func main() {
 		}
 	}
 
-	go lib.StartRelayManager(ctx, cert, trustedIds, connChan, relayCountry)
+	relayChan := lib.StartRelayManager(ctx, cert, trustedIds, relayCountry)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case relayOut := <-relayChan:
+				connChan <- relayOut.Conn
+			}
+		}
+	}()
 
 	log.Fatal(lib.ServeMux(ctx, mux, connChan))
 }

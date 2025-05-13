@@ -37,7 +37,7 @@ func StartRelayManager(ctx context.Context, cert tls.Certificate, trustedIds []p
 		relayMap = make(map[string]*relayListener)
 	)
 
-	relayChan := make(chan relayOut)
+	relayChan := make(chan relayOut, 10)
 
 	addressLister := discovery.NewAddressLister()
 	go discovery.Broadcast(ctx, cert, &addressLister, discovery.GetDiscoEndpoint(discovery.OptDiscoEndpointAuto))
