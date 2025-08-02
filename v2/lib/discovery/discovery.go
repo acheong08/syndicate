@@ -103,12 +103,8 @@ func Broadcast(ctx context.Context, cert tls.Certificate, lister *addressLister,
 	if lister == nil {
 		panic("address lister cannot be nil")
 	}
-	logger := events.NewLogger()
-	lister.OnUpdate = func(s []string) {
-		logger.Log(events.ListenAddressesChanged, nil)
-	}
-	go logger.Serve(ctx)
-	disco, err := discover.NewGlobal(discoEndpoint.Announce, cert, lister, logger, registry.New())
+
+	disco, err := discover.NewGlobal(discoEndpoint.Announce, cert, lister, events.NoopLogger, registry.New())
 	if err != nil {
 		return eris.Wrap(err, "failed to create discovery service")
 	}

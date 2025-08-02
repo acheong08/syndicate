@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -42,7 +43,7 @@ func main() {
 		}
 	}
 
-	log.Printf("Starting SOCKS5 server at %s.syncthing/", protocol.NewDeviceID(cert.Certificate[0]))
+	fmt.Printf("Starting SOCKS5 server at %s\n", protocol.NewDeviceID(cert.Certificate[0]))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
