@@ -26,19 +26,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("Starting multiplexed SOCKS5 server with ID %s", protocol.NewDeviceID(cert.Certificate[0]))
+	log.Printf("Starting socks with ID %s", protocol.NewDeviceID(cert.Certificate[0]))
 
-	// Create hybrid dialer for syncthing connections
-	hybridDialer := lib.NewHybridDialer(cert)
-
-	// Create multiplexing dialer with connection pooling and reuse
-	muxDialer := lib.NewMultiplexingDialer(cert, hybridDialer)
-	defer muxDialer.Close()
-
-	server := socks5.NewServer(socks5.WithDial(muxDialer.Dial), socks5.WithResolver(lib.DNSResolver{}))
+	dialer := lib.NewHybridDialer(cert)
+	server := socks5.NewServer(socks5.WithDial(dialer.Dial), socks5.WithResolver(lib.DNSResolver{}))
 
 	// Start server
-	fmt.Println("Starting multiplexed SOCKS5 server on :1080")
+	fmt.Println("Starting SOCKS5 server on :1080")
 	if err := server.ListenAndServe("tcp", "127.0.0.1:1080"); err != nil {
 		panic(err)
 	}

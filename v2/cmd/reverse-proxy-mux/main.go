@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -10,11 +11,13 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/acheong08/syndicate/v2/internal"
 	"github.com/acheong08/syndicate/v2/lib"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
+	"github.com/acheong08/syndicate/v2/lib/mux"
 	"github.com/syncthing/syncthing/lib/protocol"
 )
 
@@ -36,13 +39,16 @@ func main() {
 	trustedIdsPath := flag.String("trusted", "", "Path to newline separated by newlines")
 	country := flag.String("country", "", "Country code for relay selection (auto-detect if empty)")
 	flag.Parse()
+
 	if *target == "" {
 		log.Fatal("The --target flag is required")
 	}
+
 	targetURL, err := url.Parse(*target)
 	if err != nil {
 		log.Fatalf("Invalid target URL: %v", err)
 	}
+
 	var cert tls.Certificate
 	if keysPath == nil || *keysPath == "" {
 		cert, err = crypto.NewCertificate("syncthing-server", 1)
@@ -52,14 +58,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 	trustedIds, err := LoadTrustedDeviceIDs(*trustedIdsPath)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("Starting proxy at http://%s.syncthing/", protocol.NewDeviceID(cert.Certificate[0]))
 
+	log.Printf("Starting multiplexed reverse proxy at http://%s.syncthing/", protocol.NewDeviceID(cert.Certificate[0]))
+
+	// Create reverse proxy with multiplexed backend connections
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-	proxy.Transport = &http.Transport{Proxy: nil}
 	proxy.Director = func(req *http.Request) {
 		req.URL.Scheme = targetURL.Scheme
 		req.URL.Host = targetURL.Host
@@ -69,10 +77,6 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	mux := http.NewServeMux()
-	mux.Handle("/", proxy)
-	connChan := make(chan net.Conn, 5)
 
 	var relayCountry string
 	if *country != "" {
@@ -85,19 +89,73 @@ func main() {
 		}
 	}
 
+	// Start relay manager
 	relayChan := lib.StartRelayManager(ctx, cert, trustedIds, relayCountry)
+
+	// Handle incoming relay connections with multiplexing
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case relayOut := <-relayChan:
-				connChan <- relayOut.Conn
+				go handleMultiplexedReverseProxy(ctx, relayOut.Conn, proxy)
 			}
 		}
 	}()
 
-	log.Fatal(lib.ServeMux(ctx, mux, connChan))
+	select {}
+}
+
+// handleMultiplexedReverseProxy handles a single relay connection with multiplexing for reverse proxy
+func handleMultiplexedReverseProxy(ctx context.Context, conn net.Conn, proxy *httputil.ReverseProxy) {
+	defer conn.Close()
+
+	// Create server session for multiplexing
+	session := mux.NewServerSession(ctx, conn)
+	defer session.Close()
+
+	log.Printf("New multiplexed reverse proxy connection from %s", conn.RemoteAddr())
+
+	// Accept streams and handle each as an HTTP connection
+	for {
+		stream, err := session.AcceptStream()
+		if err != nil {
+			log.Printf("Failed to accept stream: %v", err)
+			return
+		}
+
+		// Handle each stream as a separate HTTP connection
+		go func(s net.Conn) {
+			defer s.Close()
+			if err := http.Serve(&singleConnListener{conn: s}, proxy); err != nil {
+				log.Printf("HTTP serve error: %v", err)
+			}
+		}(stream)
+	}
+}
+
+// singleConnListener is a net.Listener that returns a single connection once
+type singleConnListener struct {
+	conn net.Conn
+	used bool
+}
+
+func (l *singleConnListener) Accept() (net.Conn, error) {
+	if l.used {
+		// Block forever after first use
+		select {}
+	}
+	l.used = true
+	return l.conn, nil
+}
+
+func (l *singleConnListener) Close() error {
+	return l.conn.Close()
+}
+
+func (l *singleConnListener) Addr() net.Addr {
+	return l.conn.LocalAddr()
 }
 
 func detectCountry() (string, error) {
@@ -117,4 +175,32 @@ func detectCountry() (string, error) {
 		return "", nil
 	}
 	return info.Country, nil
+}
+
+func LoadTrustedDeviceIDs(path string) ([]protocol.DeviceID, error) {
+	if path == "" {
+		return nil, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	trustedIds := []protocol.DeviceID{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) > 64 {
+			line = line[:64]
+		}
+		id, err := protocol.DeviceIDFromString(line)
+		if err != nil {
+			return nil, err
+		}
+		trustedIds = append(trustedIds, id)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return trustedIds, nil
 }
