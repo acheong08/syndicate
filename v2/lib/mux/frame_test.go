@@ -161,55 +161,6 @@ func (m *mockConn) SetWriteDeadline(t time.Time) error { return nil }
 
 // Pipe creates two connected mock connections
 func mockPipe() (net.Conn, net.Conn) {
-	buf1 := &bytes.Buffer{}
-	buf2 := &bytes.Buffer{}
-
-	conn1 := &pipedMockConn{
-		readBuf:    buf1,
-		writeBuf:   buf2,
-		localAddr:  &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-		remoteAddr: &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 5678},
-	}
-
-	conn2 := &pipedMockConn{
-		readBuf:    buf2,
-		writeBuf:   buf1,
-		localAddr:  &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 5678},
-		remoteAddr: &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1234},
-	}
-
+	conn1, conn2 := net.Pipe()
 	return conn1, conn2
 }
-
-type pipedMockConn struct {
-	readBuf    *bytes.Buffer
-	writeBuf   *bytes.Buffer
-	localAddr  net.Addr
-	remoteAddr net.Addr
-	closed     bool
-}
-
-func (p *pipedMockConn) Read(b []byte) (n int, err error) {
-	if p.closed {
-		return 0, net.ErrClosed
-	}
-	return p.readBuf.Read(b)
-}
-
-func (p *pipedMockConn) Write(b []byte) (n int, err error) {
-	if p.closed {
-		return 0, net.ErrClosed
-	}
-	return p.writeBuf.Write(b)
-}
-
-func (p *pipedMockConn) Close() error {
-	p.closed = true
-	return nil
-}
-
-func (p *pipedMockConn) LocalAddr() net.Addr                { return p.localAddr }
-func (p *pipedMockConn) RemoteAddr() net.Addr               { return p.remoteAddr }
-func (p *pipedMockConn) SetDeadline(t time.Time) error      { return nil }
-func (p *pipedMockConn) SetReadDeadline(t time.Time) error  { return nil }
-func (p *pipedMockConn) SetWriteDeadline(t time.Time) error { return nil }

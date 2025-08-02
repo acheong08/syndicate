@@ -179,7 +179,16 @@ func TestStreamClose(t *testing.T) {
 
 	// Write some data
 	testData := []byte("test data")
-	clientStream.Write(testData)
+	n, err := clientStream.Write(testData)
+	if err != nil {
+		t.Fatalf("Failed to write test data: %v", err)
+	}
+	if n != len(testData) {
+		t.Fatalf("Write incomplete: wrote %d, expected %d", n, len(testData))
+	}
+
+	// Give a small delay to ensure data is processed
+	time.Sleep(10 * time.Millisecond)
 
 	// Close client stream
 	err = clientStream.Close()
@@ -187,14 +196,17 @@ func TestStreamClose(t *testing.T) {
 		t.Fatalf("Failed to close client stream: %v", err)
 	}
 
-	// Server should read the data and then get EOF
-	readData := make([]byte, len(testData))
-	n, err := io.ReadFull(serverStream, readData)
-	if err != nil {
+	// Server should read the data first
+	readData := make([]byte, len(testData)*2) // Make buffer larger
+	n, err = serverStream.Read(readData)
+	if err != nil && err != io.EOF {
 		t.Fatalf("Server read failed: %v", err)
 	}
-	if string(readData) != string(testData) {
-		t.Fatalf("Data mismatch before close")
+	if n != len(testData) {
+		t.Fatalf("Server read wrong amount: read %d, expected %d", n, len(testData))
+	}
+	if string(readData[:n]) != string(testData) {
+		t.Fatalf("Data mismatch before close: got %q, expected %q", string(readData[:n]), string(testData))
 	}
 
 	// Next read should return EOF

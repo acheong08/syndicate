@@ -190,10 +190,7 @@ func (vc *VirtualConn) handleData(data []byte) error {
 
 // handleClose processes a close frame for this stream
 func (vc *VirtualConn) handleClose() {
-	vc.mu.Lock()
-	vc.readClosed = true
-	vc.mu.Unlock()
-
+	// Don't set readClosed immediately - let the nil in the buffer handle it
 	// Signal end of stream
 	select {
 	case vc.readBuffer <- nil:
