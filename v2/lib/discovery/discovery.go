@@ -16,7 +16,7 @@ import (
 )
 
 func isIPv4Available() bool {
-	conn, err := net.DialTimeout("tcp4", "example.com:80", 2*time.Second)
+	conn, err := net.DialTimeout("tcp4", "example.com:80", 5*time.Second)
 	if err != nil {
 		return false
 	}
@@ -25,7 +25,7 @@ func isIPv4Available() bool {
 }
 
 func isIPv6Available() bool {
-	conn, err := net.DialTimeout("tcp6", "example.com:80", 2*time.Second)
+	conn, err := net.DialTimeout("tcp6", "example.com:80", 5*time.Second)
 	if err != nil {
 		return false
 	}

@@ -4,14 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/acheong08/syndicate/v2/internal"
 	"github.com/acheong08/syndicate/v2/lib"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
+	"github.com/acheong08/syndicate/v2/lib/mux"
+	"github.com/syncthing/syncthing/lib/protocol"
 )
 
 func main() {
@@ -35,10 +37,25 @@ func main() {
 		panic(err)
 	}
 
+	deviceID, err := protocol.DeviceIDFromString(*serverID)
+	if err != nil {
+		log.Fatalf("Invalid server device ID: %v", err)
+	}
+
 	log.Printf("Starting SOCKS5 client on %s, connecting to server %s", *localAddr, *serverID)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Create hybrid dialer for syncthing connections
-	dialer := lib.NewHybridDialer(cert)
+	hybridDialer := lib.NewHybridDialer(cert)
+
+	// Create tunnel manager for efficient connection reuse
+	tunnelManager := mux.NewTunnelManager(cert, hybridDialer,
+		mux.WithMaxPoolSize(5),
+		mux.WithMaxIdleTime(300*time.Second),
+	)
+	defer tunnelManager.Close()
 
 	// Listen for local connections
 	listener, err := net.Listen("tcp", *localAddr)
@@ -56,32 +73,40 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn, *serverID, dialer)
+		go handleConnection(ctx, conn, deviceID, tunnelManager)
 	}
 }
 
-type hybridDialer interface {
-	Dial(ctx context.Context, network, addr string) (net.Conn, error)
-}
-
-func handleConnection(localConn net.Conn, serverID string, dialer hybridDialer) {
+func handleConnection(ctx context.Context, localConn net.Conn, serverDeviceID protocol.DeviceID, tunnelManager *mux.TunnelManager) {
 	defer localConn.Close()
 
-	// Connect to the SOCKS5 server through syncthing
-	serverAddr := fmt.Sprintf("%s.syncthing:1080", serverID)
-	remoteConn, err := dialer.Dial(context.Background(), "tcp", serverAddr)
+	// Get a multiplexed connection to the server
+	remoteConn, err := tunnelManager.GetConnection(ctx, serverDeviceID)
 	if err != nil {
-		log.Printf("Failed to connect to server %s: %v", serverAddr, err)
+		log.Printf("Failed to get connection to server %s: %v", serverDeviceID.Short(), err)
 		return
 	}
 	defer remoteConn.Close()
 
-	// Tunnel the connection using io.Copy
+	log.Printf("Established multiplexed connection for local client %s", localConn.RemoteAddr())
+
+	// Tunnel the connection using io.Copy in both directions
+	done := make(chan struct{}, 2)
+
+	// Copy from local to remote
 	go func() {
-		defer localConn.Close()
-		defer remoteConn.Close()
+		defer func() { done <- struct{}{} }()
 		io.Copy(remoteConn, localConn)
+		remoteConn.Close()
 	}()
 
-	io.Copy(localConn, remoteConn)
+	// Copy from remote to local
+	go func() {
+		defer func() { done <- struct{}{} }()
+		io.Copy(localConn, remoteConn)
+		localConn.Close()
+	}()
+
+	// Wait for either direction to complete
+	<-done
 }
