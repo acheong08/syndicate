@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/acheong08/syndicate/v2/internal"
 	"github.com/acheong08/syndicate/v2/lib/crypto"
 	"github.com/acheong08/syndicate/v2/lib/relay"
 	"github.com/syncthing/syncthing/lib/protocol"
@@ -59,7 +58,8 @@ func TestRelayConnection(t *testing.T) {
 	}(invites)
 	clientCert, _ := crypto.NewCertificate(magicSni, 1)
 	serverDeviceId := protocol.NewDeviceID(serverCert.Certificate[0])
-	invite, err := internal.TryGetInviteUntil(ctx, relays.First().URL, serverDeviceId, clientCert, 5*time.Second)
+	time.Sleep(2 * time.Second)
+	invite, err := relay.GetInvite(ctx, relays.First().URL, serverDeviceId, clientCert)
 	if err != nil {
 		t.Fatal(err)
 	}
