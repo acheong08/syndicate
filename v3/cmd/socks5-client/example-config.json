@@ -1,0 +1,5 @@
+{
+  "listen_addr": ":1080",
+  "cert_file": "",
+  "key_file": ""
+}
